@@ -1,7 +1,7 @@
 # 📋 Contexte Actuel - Correcteur Pro
 
 **Date de dernière mise à jour** : 28 novembre 2024
-**Statut** : ✅ **Fonctionnel** - API OpenAI + Historique conversationnel
+**Statut** : ✅ **Fonctionnel** - API OpenAI + Historique + Vision API + Persistance
 
 ---
 
@@ -39,13 +39,38 @@
   - L'assistant se souvient du contexte précédent
   - Limite automatique aux 20 derniers messages
   - Filtrage des messages temporaires
-- ✅ Support des images avec Vision API
+- ✅ **Support des images avec Vision API** (ÉTAPE 8)
+  - Détection automatique des images dans les messages
+  - Utilisation de `gpt-4o` pour les messages avec images
+  - Utilisation de `gpt-4o-mini` pour le texte seul
+  - Format Vision API avec base64
 - ✅ Gestion des erreurs (réseau, rate limit, etc.)
 - ✅ Logging des requêtes/réponses dans fichiers (`APILogger.swift`)
 - ✅ Indicateur de chargement ("⏳ Génération en cours...")
 - ✅ Désactivation du bouton d'envoi pendant la génération
 
-#### 4. **Configuration et Tests**
+#### 4. **Persistance des Conversations** (ÉTAPE 9)
+- ✅ `ConversationStorage.swift` : Service de sauvegarde/chargement JSON
+- ✅ **Auto-save automatique** :
+  - Après ajout d'un message utilisateur
+  - Après réception de la réponse de l'API
+  - Après renommage d'une conversation
+  - Après création d'une nouvelle conversation
+- ✅ **Chargement au démarrage** :
+  - Les 50 dernières conversations chargées automatiquement
+  - Tri par date de dernière modification (plus récentes en premier)
+  - Conversations par défaut sauvegardées lors de la première utilisation
+- ✅ **Stockage dans le sandbox** :
+  - `~/Library/Containers/Hadrien.Correcteur-Pro/Data/Library/Application Support/Correcteur Pro/conversations/`
+  - Format JSON lisible avec pretty-print
+  - Fichier `index.json` pour la liste des conversations
+- ✅ **Modèles Codable** :
+  - `Conversation` : conforme à Codable (avec systemPrompt, lastModified)
+  - `Message` : conforme à Codable (recréation des NSImage depuis imageData)
+  - `ImageData` : déjà Codable
+- ✅ **Export Markdown** (disponible dans ConversationStorage)
+
+#### 5. **Configuration et Tests**
 - ✅ Support du fichier `.env` pour développement
   - **Fichier copié dans le bundle Xcode** (`.env` et `env.txt`)
   - Recherche prioritaire dans `Bundle.main.resourcePath`
@@ -99,7 +124,8 @@ Correcteur Pro/
 │   │   ├── CustomPromptSheet.swift
 │   │   └── ToastView.swift
 │   ├── Services/
-│   │   └── OpenAIService.swift (avec support historique)
+│   │   ├── OpenAIService.swift (avec historique + Vision API)
+│   │   └── ConversationStorage.swift (persistance JSON)
 │   ├── Utilities/
 │   │   ├── APIKeyManager.swift
 │   │   ├── EnvLoader.swift (recherche dans bundle)
@@ -146,15 +172,15 @@ LOG_LEVEL=debug
 - **ÉTAPE 4** : Intégration API OpenAI basique
 - **ÉTAPE 5.1** : OpenAIService avec support historique
 - **ÉTAPE 5.2** : ChatViewModel avec envoi de l'historique complet
+- **ÉTAPE 8** : Support Vision API pour les images (gpt-4o)
+- **ÉTAPE 9** : Persistance des conversations (sauvegarde locale JSON)
 
 ### ⏳ En Attente (Optionnel)
 - **ÉTAPE 5.3** : Affichage du nombre de tokens dans le header
 - **ÉTAPE 5.4** : Boutons Stop/Retry et optimisations avancées
 
 ### 🔜 À Faire
-- **ÉTAPE 6** : Support Vision API pour les images
-- **ÉTAPE 7** : Persistance des conversations (sauvegarde locale)
-- **ÉTAPE 8** : Optimisations (debounce, cancel, retry)
+- **ÉTAPE 10** : Polish final (bouton supprimer, export MD, etc.)
 
 ---
 
@@ -275,4 +301,4 @@ cd "/Users/hadrienrose/Code/Correcteur Pro"
 
 ---
 
-**Dernière action** : ✅ Implémentation de l'historique conversationnel (ÉTAPE 5.1 + 5.2). L'application maintient maintenant le contexte entre les messages et ChatGPT se souvient de la conversation. Les étapes 5.3 et 5.4 sont optionnelles et peuvent être implémentées plus tard.
+**Dernière action** : ✅ Implémentation complète de la persistance (ÉTAPE 9). Les conversations sont maintenant sauvegardées automatiquement en JSON dans le sandbox macOS, chargées au démarrage, et survivent aux redémarrages de l'application. Support Vision API (ÉTAPE 8) également implémenté avec détection automatique des images et utilisation de gpt-4o.

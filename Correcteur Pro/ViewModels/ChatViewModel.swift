@@ -25,7 +25,10 @@ final class ChatViewModel: ObservableObject {
     @Published var promptType: SystemPromptType = .correcteur
     @Published var customPrompt: String = ""
     @Published var isGenerating: Bool = false // État de chargement pour l'API
-    
+
+    // Service de persistance
+    private let storage = ConversationStorage.shared
+
     var currentSystemPrompt: String {
         switch promptType {
         case .correcteur:
@@ -38,11 +41,29 @@ final class ChatViewModel: ObservableObject {
             return customPrompt.isEmpty ? ChatViewModel.correcteurPrompt : customPrompt
         }
     }
-    
-    init(conversations: [Conversation]? = nil) {
-        let initialConversations = conversations ?? ChatViewModel.defaultConversations
-        self.conversations = initialConversations
-        self.selectedConversationID = initialConversations.first?.id
+
+    init(conversations: [Conversation]? = nil, loadFromStorage: Bool = true) {
+        // Charger les conversations depuis le stockage (ou utiliser les données fournies/par défaut)
+        if loadFromStorage {
+            let loadedConversations = ConversationStorage.shared.loadAll()
+            if loadedConversations.isEmpty {
+                // Première utilisation : sauvegarder les conversations par défaut
+                print("💾 [ChatViewModel] Première utilisation - sauvegarde des conversations par défaut")
+                self.conversations = ChatViewModel.defaultConversations
+                // Sauvegarder les conversations par défaut
+                for conversation in self.conversations {
+                    ConversationStorage.shared.save(conversation)
+                }
+            } else {
+                self.conversations = loadedConversations
+                print("💾 [ChatViewModel] \(loadedConversations.count) conversations chargées depuis le stockage")
+            }
+        } else {
+            let initialConversations = conversations ?? ChatViewModel.defaultConversations
+            self.conversations = initialConversations
+        }
+
+        self.selectedConversationID = self.conversations.first?.id
     }
     
     var selectedConversation: Conversation? {
@@ -51,9 +72,15 @@ final class ChatViewModel: ObservableObject {
     }
     
     func createNewConversation() {
-        let newConversation = Conversation(titre: "Nouvelle conversation")
+        let newConversation = Conversation(
+            titre: "Nouvelle conversation",
+            systemPrompt: currentSystemPrompt
+        )
         conversations.insert(newConversation, at: 0)
         selectedConversationID = newConversation.id
+
+        // Auto-save
+        storage.save(newConversation)
     }
     
     func selectConversation(_ conversation: Conversation) {
@@ -66,6 +93,9 @@ final class ChatViewModel: ObservableObject {
         if selectedConversationID == conversation.id {
             selectedConversationID = conversations.first?.id
         }
+
+        // Supprimer du stockage
+        storage.delete(id: conversation.id)
     }
     
     func renameSelectedConversation(to newTitle: String) {
@@ -76,6 +106,10 @@ final class ChatViewModel: ObservableObject {
             return
         }
         conversations[index].titre = trimmed
+        conversations[index].lastModified = Date()
+
+        // Auto-save
+        storage.save(conversations[index])
     }
     
     @discardableResult
@@ -112,7 +146,11 @@ final class ChatViewModel: ObservableObject {
         
         let userMessage = Message(contenu: trimmed, isUser: true, images: images, imageData: imageDataArray)
         conversations[index].messages.append(userMessage)
-        
+        conversations[index].lastModified = Date()
+
+        // Auto-save après ajout du message utilisateur
+        storage.save(conversations[index])
+
         // ÉTAPE 4.2 : Remplacer l'echo par un appel réel à l'API OpenAI
         // Créer un message temporaire avec typing indicator
         let typingMessageID = UUID()
@@ -162,6 +200,10 @@ final class ChatViewModel: ObservableObject {
                             contenu: response,
                             isUser: false
                         )
+                        conversations[index].lastModified = Date()
+
+                        // Auto-save après réception de la réponse
+                        storage.save(conversations[index])
                     }
                     isGenerating = false
                     print("✅ [ChatViewModel] Réponse reçue et affichée")
@@ -358,20 +400,10 @@ Tu es un traducteur professionnel. Traduis le texte fourni de manière précise 
 // MARK: - Prévisualisation
 
 extension ChatViewModel {
-    static let defaultConversations: [Conversation] = [
-        Conversation(
-            titre: "Correction de texte 1",
-            messages: [
-                Message(contenu: "Bonjour, peux-tu corriger ce texte ?", isUser: true),
-                Message(contenu: "Bien sûr ! Envoyez-moi le texte à corriger.", isUser: false)
-            ]
-        ),
-        Conversation(titre: "Traduction document"),
-        Conversation(titre: "Révision rapport")
-    ]
-    
+    static let defaultConversations: [Conversation] = []
+
     static var preview: ChatViewModel {
-        ChatViewModel(conversations: defaultConversations)
+        ChatViewModel(conversations: defaultConversations, loadFromStorage: false)
     }
 }
 

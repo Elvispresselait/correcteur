@@ -80,7 +80,8 @@ private struct OpenAIResponse: Codable {
 final class OpenAIService {
     private static let endpoint = "https://api.openai.com/v1/chat/completions"
     private static let timeout: TimeInterval = 30.0
-    private static let model = "gpt-4o-mini"
+    private static let defaultModel = "gpt-4o-mini" // Pour texte seul
+    private static let visionModel = "gpt-4o" // Pour messages avec images
 
     // MARK: - Nouvelle méthode avec historique (ÉTAPE 5.1)
 
@@ -131,12 +132,24 @@ final class OpenAIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = timeout
 
-        // 4. Convertir les messages au format OpenAI
+        // 4. Détecter si des messages contiennent des images
+        let containsImages = messages.contains { message in
+            if let imageData = message.imageData, !imageData.isEmpty {
+                return true
+            }
+            return false
+        }
+
+        // Choisir le modèle approprié
+        let selectedModel = containsImages ? visionModel : defaultModel
+        print("🤖 [OpenAIService] Modèle sélectionné : \(selectedModel) \(containsImages ? "(images détectées)" : "(texte seul)")")
+
+        // 5. Convertir les messages au format OpenAI (avec images si présentes)
         let openAIMessages = convertMessagesToOpenAIFormat(messages, systemPrompt: systemPrompt)
 
-        // 5. Créer le body JSON
+        // 6. Créer le body JSON
         let requestBody: [String: Any] = [
-            "model": model,
+            "model": selectedModel,
             "messages": openAIMessages,
             "temperature": 0.7,
             "max_tokens": 2000
@@ -150,7 +163,7 @@ final class OpenAIService {
         }
 
         print("📡 [OpenAIService] Envoi de la requête à \(endpoint)")
-        print("📝 [OpenAIService] Modèle: \(model)")
+        print("📝 [OpenAIService] Modèle: \(selectedModel)")
         print("📝 [OpenAIService] Nombre de messages OpenAI : \(openAIMessages.count) (system + historique)")
 
         // Logger la requête dans un fichier
@@ -287,7 +300,7 @@ final class OpenAIService {
 
     // MARK: - Méthode de conversion
 
-    /// Convertit les messages de notre modèle au format OpenAI
+    /// Convertit les messages de notre modèle au format OpenAI (avec support Vision API)
     /// - Parameters:
     ///   - messages: Les messages à convertir
     ///   - systemPrompt: Le prompt système
@@ -297,6 +310,7 @@ final class OpenAIService {
         systemPrompt: String
     ) -> [[String: Any]] {
         var openAIMessages: [[String: Any]] = []
+        var totalImagesCount = 0
 
         // 1. Ajouter le systemPrompt en premier
         openAIMessages.append([
@@ -307,13 +321,47 @@ final class OpenAIService {
         // 2. Convertir les messages utilisateur et assistant
         for message in messages {
             let role = message.isUser ? "user" : "assistant"
-            openAIMessages.append([
-                "role": role,
-                "content": message.contenu
-            ])
+
+            // Vérifier si le message contient des images
+            if let imageData = message.imageData, !imageData.isEmpty {
+                // Format Vision API : content est un tableau
+                var contentArray: [[String: Any]] = []
+
+                // Ajouter le texte d'abord (si présent)
+                if !message.contenu.isEmpty {
+                    contentArray.append([
+                        "type": "text",
+                        "text": message.contenu
+                    ])
+                }
+
+                // Ajouter chaque image
+                for imgData in imageData {
+                    contentArray.append([
+                        "type": "image_url",
+                        "image_url": [
+                            "url": imgData.base64
+                        ]
+                    ])
+                    totalImagesCount += 1
+                }
+
+                openAIMessages.append([
+                    "role": role,
+                    "content": contentArray
+                ])
+
+                print("🖼️  [OpenAIService] Message avec \(imageData.count) image(s)")
+            } else {
+                // Format texte seul : content est une string
+                openAIMessages.append([
+                    "role": role,
+                    "content": message.contenu
+                ])
+            }
         }
 
-        print("📊 [OpenAIService] Conversion : \(messages.count) messages → \(openAIMessages.count) messages OpenAI")
+        print("📊 [OpenAIService] Conversion : \(messages.count) messages → \(openAIMessages.count) messages OpenAI (\(totalImagesCount) image(s))")
 
         return openAIMessages
     }
@@ -381,7 +429,7 @@ final class OpenAIService {
         
         // 4. Créer le body JSON
         let requestBody: [String: Any] = [
-            "model": model,
+            "model": defaultModel, // Ancienne méthode utilise toujours le modèle par défaut (texte seul)
             "messages": [
                 [
                     "role": "system",
@@ -404,7 +452,7 @@ final class OpenAIService {
         }
         
         print("📡 [OpenAIService] Envoi de la requête à \(endpoint)")
-        print("📝 [OpenAIService] Modèle: \(model)")
+        print("📝 [OpenAIService] Modèle: \(defaultModel)")
         print("📝 [OpenAIService] Message utilisateur: \(message.prefix(50))...")
         
         // Logger la requête dans un fichier
