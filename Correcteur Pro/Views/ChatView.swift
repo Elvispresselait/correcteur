@@ -43,13 +43,13 @@ struct ChatView: View {
                     }
                 }
             )
-            
+
             if let conversation = viewModel.selectedConversation {
                 MessagesScrollView(messages: conversation.messages)
             } else {
                 EmptyStateView()
             }
-            
+
             InputBarView(
                 inputText: $inputText,
                 pendingImages: $pendingImages,
@@ -68,7 +68,10 @@ struct ChatView: View {
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(chatGradient)
+        .background(
+            Rectangle()
+                .fill(chatGradient)
+        )
         .toast($toast)
         .onChange(of: toast) { oldValue, newValue in
             if let toast = newValue {
@@ -147,15 +150,22 @@ struct HeaderView: View {
             .buttonStyle(.plain)
             .help("Afficher/masquer la barre latérale")
             
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Text(title)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.white)
                     .lineLimit(1)
-                
-                Image(systemName: "doc.text")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white.opacity(0.7))
+
+                // Bouton de renommage juste à côté du titre
+                if canRename {
+                    Button(action: onRename) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Renommer la conversation")
+                }
             }
             
             Spacer()
@@ -192,49 +202,11 @@ struct HeaderView: View {
             }
             .buttonStyle(.plain)
             .help("Sélectionner le prompt système")
-            
-            // Bouton de test frontend (debug)
-            if let onTestFrontend = onTestFrontend {
-                Button(action: onTestFrontend) {
-                    Image(systemName: "testtube.2")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                .buttonStyle(.plain)
-                .help("Tester le flux frontend (debug)")
-            }
-            
-            Button(action: onRename) {
-                Label("Renommer", systemImage: "pencil")
-                    .labelStyle(.iconOnly)
-            }
-            .buttonStyle(.plain)
-            .foregroundColor(canRename ? Color.white : Color.white.opacity(0.3))
-            .disabled(!canRename)
-            .help("Renommer la conversation")
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 24)
-        .padding(.bottom, 14)
-        .background(
-            UnevenRoundedRectangle(cornerRadii: .init(
-                topLeading: 18,
-                bottomLeading: 0,
-                bottomTrailing: 0,
-                topTrailing: 18
-            ), style: .continuous)
-                .fill(Color.white.opacity(0.05))
-                .overlay(
-                    UnevenRoundedRectangle(cornerRadii: .init(
-                        topLeading: 18,
-                        bottomLeading: 0,
-                        bottomTrailing: 0,
-                        topTrailing: 18
-                    ), style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
-        .frame(height: 56)
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        .frame(height: 48)
         .sheet(isPresented: $showCustomPromptSheet) {
             CustomPromptSheet(viewModel: viewModel)
         }
@@ -516,30 +488,16 @@ struct InputBarView: View {
             // Preview des images
             if !pendingImages.isEmpty {
                 ImagePreviewSection(images: $pendingImages)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 4)
             }
             
             // Zone de saisie
             HStack(alignment: .bottom, spacing: 12) {
-                // Bouton pour coller une image
-                Button(action: {
-                    handleImagePasteFromClipboard()
-                }) {
-                    Image(systemName: "photo.badge.plus")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.7))
-                        .padding(8)
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-                .help("Coller une image depuis le presse-papiers")
-                
-                TextEditorWithImagePaste(text: $inputText) { result in
+                TextEditorWithImagePaste(text: $inputText, onImagePasted: { result in
                     handleImagePasteResult(result)
-                }
+                }, onSend: onSend)
                 .frame(minHeight: 36, maxHeight: 80)
                 .padding(8)
                 .background(inputBackground)
@@ -550,42 +508,44 @@ struct InputBarView: View {
                 )
                 .foregroundColor(.white)
                 .accentColor(Color(hex: "5C9DFF"))
-                
-                Button(action: onSend) {
-                    Image(systemName: isGenerating ? "stop.circle.fill" : "paperplane.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(14)
-                        .background(
-                            Circle()
-                                .fill(sendButtonColor)
-                        )
+
+                // Boutons empilés verticalement
+                VStack(spacing: 8) {
+                    // Bouton pour coller une image (même taille et couleur que le bouton d'envoi)
+                    Button(action: {
+                        handleImagePasteFromClipboard()
+                    }) {
+                        Image(systemName: "photo.badge.plus")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(14)
+                            .background(
+                                Circle()
+                                    .fill(Color(hex: "4F8CFF"))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Coller une image depuis le presse-papiers")
+
+                    // Bouton d'envoi
+                    Button(action: onSend) {
+                        Image(systemName: isGenerating ? "stop.circle.fill" : "paperplane.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(14)
+                            .background(
+                                Circle()
+                                    .fill(sendButtonColor)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled((inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && pendingImages.isEmpty) || isGenerating) // ÉTAPE 4.2 : Désactiver pendant la génération
                 }
-                .buttonStyle(.plain)
-                .disabled((inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && pendingImages.isEmpty) || isGenerating) // ÉTAPE 4.2 : Désactiver pendant la génération
             }
-            .padding(.horizontal, 24)
-            .padding(.top, pendingImages.isEmpty ? 12 : 0)
-            .padding(.bottom, 24)
+            .padding(.horizontal, 16)
+            .padding(.top, pendingImages.isEmpty ? 8 : 0)
+            .padding(.bottom, 12)
         }
-        .background(
-            UnevenRoundedRectangle(cornerRadii: .init(
-                topLeading: 22,
-                bottomLeading: 0,
-                bottomTrailing: 0,
-                topTrailing: 22
-            ), style: .continuous)
-                .fill(Color.white.opacity(0.02))
-                .overlay(
-                    UnevenRoundedRectangle(cornerRadii: .init(
-                        topLeading: 22,
-                        bottomLeading: 0,
-                        bottomTrailing: 0,
-                        topTrailing: 22
-                    ), style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
     }
     
     // Gestion du collage d'image depuis le clipboard

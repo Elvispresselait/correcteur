@@ -41,12 +41,12 @@ struct ContentView: View {
                         inputText: $inputText
                     )
                 }
-                .padding(24)
+                .padding(0)
                 .background(
-                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                    Rectangle()
                         .fill(Color.white.opacity(0.03))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                            Rectangle()
                                 .stroke(Color.white.opacity(0.05), lineWidth: 1)
                         )
                         .shadow(color: Color.black.opacity(0.45), radius: 40, x: 0, y: 20)

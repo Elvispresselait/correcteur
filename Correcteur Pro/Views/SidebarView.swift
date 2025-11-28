@@ -76,17 +76,16 @@ struct SidebarView: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 18)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            Rectangle()
                 .fill(sidebarGradient)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    Rectangle()
                         .stroke(Color.white.opacity(0.04), lineWidth: 1)
                 )
         )
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 }
 

@@ -9,19 +9,24 @@
 
 ### ✅ Fonctionnalités Implémentées
 
-#### 1. **Interface Utilisateur (UI)**
+#### 1. **Interface Utilisateur (UI)** - Design Épuré
 - ✅ Interface chat avec sidebar et zone de conversation
-- ✅ Design dark mode avec couleurs personnalisées :
+- ✅ **Design minimaliste et épuré** (ÉTAPE 7.5) :
   - Sidebar : `#031838`
   - Chat background : `#253356`
+  - **Coins nets à 90°** (plus de coins arrondis)
   - Bulles de messages stylisées
+  - **Espacements optimisés** : interface plus compacte
 - ✅ Header avec sélection de prompt système :
   - "Correcteur orthographique" (par défaut)
   - "Assistant général"
   - "Traducteur"
   - "Personnalisé" (avec modal pour saisie)
-- ✅ Icône document à côté du titre de conversation
-- ✅ Transitions visuelles sans coins arrondis pour continuité
+- ✅ **Bouton de renommage (✏️)** : juste à côté du titre de conversation
+- ✅ **Raccourcis clavier intelligents** :
+  - **Entrée** : Envoie le message
+  - **Shift+Entrée** : Retour à la ligne
+- ✅ **Bouton image repositionné** : au-dessus du bouton d'envoi (style unifié)
 
 #### 2. **Gestion des Images**
 - ✅ Copier-coller d'images (Cmd+V) depuis le clipboard
@@ -172,6 +177,7 @@ LOG_LEVEL=debug
 - **ÉTAPE 4** : Intégration API OpenAI basique
 - **ÉTAPE 5.1** : OpenAIService avec support historique
 - **ÉTAPE 5.2** : ChatViewModel avec envoi de l'historique complet
+- **ÉTAPE 7.5** : Améliorations UI/UX (design épuré, raccourcis clavier)
 - **ÉTAPE 8** : Support Vision API pour les images (gpt-4o)
 - **ÉTAPE 9** : Persistance des conversations (sauvegarde locale JSON)
 
@@ -301,4 +307,4 @@ cd "/Users/hadrienrose/Code/Correcteur Pro"
 
 ---
 
-**Dernière action** : ✅ Implémentation complète de la persistance (ÉTAPE 9). Les conversations sont maintenant sauvegardées automatiquement en JSON dans le sandbox macOS, chargées au démarrage, et survivent aux redémarrages de l'application. Support Vision API (ÉTAPE 8) également implémenté avec détection automatique des images et utilisation de gpt-4o.
+**Dernière action** : ✅ Améliorations UI/UX complètes (ÉTAPE 7.5). Interface épurée avec coins nets, espacements optimisés, boutons harmonisés, et raccourcis clavier intelligents (Entrée=envoyer, Shift+Entrée=nouvelle ligne). Suppression des mock data pour un démarrage propre. Application désormais minimaliste et ergonomique.

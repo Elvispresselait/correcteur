@@ -11,6 +11,7 @@ import AppKit
 struct TextEditorWithImagePaste: NSViewRepresentable {
     @Binding var text: String
     let onImagePasted: (ClipboardResult) -> Void
+    var onSend: (() -> Void)? = nil
     
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -81,6 +82,24 @@ struct TextEditorWithImagePaste: NSViewRepresentable {
                     return event // Pas notre textView, laisser passer
                 }
                 
+                // Gérer Entrée pour envoyer le message
+                if event.charactersIgnoringModifiers == "\r" || event.charactersIgnoringModifiers == "\n" {
+                    // Si Shift+Entrée, laisser passer pour créer une nouvelle ligne
+                    if event.modifierFlags.contains(.shift) {
+                        print("⌨️ [TextEditor] Shift+Entrée détecté : nouvelle ligne")
+                        return event
+                    }
+
+                    // Si juste Entrée (sans Shift), envoyer le message
+                    print("⌨️ [TextEditor] Entrée détecté : envoi du message")
+                    if let onSend = self.parent.onSend {
+                        DispatchQueue.main.async {
+                            onSend()
+                        }
+                    }
+                    return nil // Bloquer l'événement pour ne pas créer de nouvelle ligne
+                }
+
                 // Vérifier si c'est Cmd+V
                 if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "v" {
                     print("⌨️ [TextEditor] Cmd+V détecté!")
