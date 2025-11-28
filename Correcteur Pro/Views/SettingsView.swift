@@ -167,6 +167,31 @@ struct SettingsView: View {
                                         .cornerRadius(8)
                                 }
                                 .buttonStyle(.plain)
+                                
+                                // Bouton de tests rapides
+                                Button(action: runQuickTests) {
+                                    HStack(spacing: 6) {
+                                        if isTesting {
+                                            ProgressView()
+                                                .scaleEffect(0.7)
+                                                .progressViewStyle(.circular)
+                                                .tint(.white)
+                                        } else {
+                                            Image(systemName: "play.circle.fill")
+                                                .font(.system(size: 13))
+                                        }
+                                        Text("Tests rapides")
+                                            .font(.system(size: 13, weight: .medium))
+                                    }
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color(hex: "FF6B6B"))
+                                    .cornerRadius(8)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isTesting)
+                                .opacity(isTesting ? 0.5 : 1.0)
                             }
                         }
                         
@@ -370,6 +395,79 @@ struct SettingsView: View {
     
     private func showToast(_ message: ToastMessage) {
         toast = message
+    }
+    
+    // MARK: - Tests rapides
+    
+    private func runQuickTests() {
+        guard let apiKey = APIKeyManager.loadAPIKey() else {
+            showToast(.error("Aucune clé API configurée"))
+            return
+        }
+        
+        isTesting = true
+        showToast(.info("Démarrage des tests..."))
+        
+        Task {
+            // Test 1 : Connexion
+            do {
+                let isConnected = try await OpenAIConnectionTester.testConnection(apiKey: apiKey)
+                await MainActor.run {
+                    if isConnected {
+                        showToast(.success("✅ Test 1/3 : Connexion réussie"))
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    showToast(.error("❌ Test 1/3 échoué: \(error.localizedDescription)"))
+                    isTesting = false
+                    return
+                }
+            }
+            
+            // Attendre un peu
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            
+            // Test 2 : Message simple
+            do {
+                let response = try await OpenAIService.sendMessage(
+                    message: "Dis bonjour en français",
+                    systemPrompt: "Tu es un assistant utile."
+                )
+                await MainActor.run {
+                    showToast(.success("✅ Test 2/3 : Message simple réussi"))
+                    print("📝 Réponse test 2: \(response)")
+                }
+            } catch {
+                await MainActor.run {
+                    showToast(.error("❌ Test 2/3 échoué: \(error.localizedDescription)"))
+                    isTesting = false
+                    return
+                }
+            }
+            
+            // Attendre un peu
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            
+            // Test 3 : Question
+            do {
+                let response = try await OpenAIService.sendMessage(
+                    message: "Quelle est la capitale de la France ?",
+                    systemPrompt: "Tu es un assistant géographique."
+                )
+                await MainActor.run {
+                    showToast(.success("✅ Test 3/3 : Question réussie"))
+                    print("📝 Réponse test 3: \(response)")
+                    showToast(.success("🎉 Tous les tests sont réussis !"))
+                    isTesting = false
+                }
+            } catch {
+                await MainActor.run {
+                    showToast(.error("❌ Test 3/3 échoué: \(error.localizedDescription)"))
+                    isTesting = false
+                }
+            }
+        }
     }
 }
 

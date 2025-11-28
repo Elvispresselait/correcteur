@@ -146,7 +146,15 @@ final class OpenAIService {
         print("📝 [OpenAIService] Modèle: \(model)")
         print("📝 [OpenAIService] Message utilisateur: \(message.prefix(50))...")
         
+        // Logger la requête dans un fichier
+        let requestHeaders = [
+            "Authorization": "Bearer \(String(apiKey.prefix(20)))...", // Masqué
+            "Content-Type": "application/json"
+        ]
+        APILogger.logRequest(endpoint: endpoint, method: "POST", headers: requestHeaders, body: requestBody)
+        
         // 5. Envoyer la requête avec async/await
+        let requestStartTime = Date()
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             
@@ -185,11 +193,28 @@ final class OpenAIService {
                     }
                     
                     // 10. Logs des tokens utilisés (si disponibles)
+                    let responseTime = Date().timeIntervalSince(requestStartTime)
                     if let usage = openAIResponse.usage {
                         let promptTokens = usage.promptTokens ?? 0
                         let completionTokens = usage.completionTokens ?? 0
                         let totalTokens = usage.totalTokens ?? 0
                         print("📊 [OpenAIService] Tokens utilisés - Prompt: \(promptTokens), Completion: \(completionTokens), Total: \(totalTokens)")
+                        
+                        // Logger la réponse dans un fichier
+                        APILogger.logResponse(
+                            statusCode: statusCode,
+                            responseTime: responseTime,
+                            tokens: (promptTokens, completionTokens, totalTokens),
+                            responsePreview: content
+                        )
+                    } else {
+                        // Logger sans tokens
+                        APILogger.logResponse(
+                            statusCode: statusCode,
+                            responseTime: responseTime,
+                            tokens: nil,
+                            responsePreview: content
+                        )
                     }
                     
                     print("✅ [OpenAIService] Réponse reçue: \(content.prefix(100))...")
@@ -207,21 +232,29 @@ final class OpenAIService {
                 }
                 
             case 401:
+                let responseTime = Date().timeIntervalSince(requestStartTime)
                 print("❌ [OpenAIService] Erreur 401: Non autorisé. Clé API invalide.")
+                APILogger.logResponse(statusCode: statusCode, responseTime: responseTime, tokens: nil, responsePreview: "Erreur 401: Clé API invalide")
                 throw OpenAIError.invalidAPIKey
                 
             case 429:
+                let responseTime = Date().timeIntervalSince(requestStartTime)
                 print("❌ [OpenAIService] Erreur 429: Limite de requêtes atteinte.")
+                APILogger.logResponse(statusCode: statusCode, responseTime: responseTime, tokens: nil, responsePreview: "Erreur 429: Rate limit")
                 throw OpenAIError.rateLimitExceeded
                 
             case 500...599:
+                let responseTime = Date().timeIntervalSince(requestStartTime)
                 print("❌ [OpenAIService] Erreur serveur \(statusCode)")
+                APILogger.logResponse(statusCode: statusCode, responseTime: responseTime, tokens: nil, responsePreview: "Erreur serveur \(statusCode)")
                 throw OpenAIError.serverError(statusCode)
                 
             default:
                 // Autres codes d'erreur
+                let responseTime = Date().timeIntervalSince(requestStartTime)
                 let responseBody = String(data: data, encoding: .utf8) ?? "N/A"
                 print("❌ [OpenAIService] Erreur inattendue \(statusCode). Corps: \(responseBody.prefix(200))")
+                APILogger.logResponse(statusCode: statusCode, responseTime: responseTime, tokens: nil, responsePreview: "Erreur \(statusCode)")
                 throw OpenAIError.invalidResponse
             }
             
@@ -229,15 +262,18 @@ final class OpenAIService {
             // Erreur réseau
             print("❌ [OpenAIService] Erreur réseau (URLError): \(urlError.localizedDescription)")
             print("❌ [OpenAIService] Code d'erreur: \(urlError.code.rawValue)")
+            APILogger.logError(urlError, context: "Erreur réseau")
             throw OpenAIError.networkError(urlError)
             
         } catch let openAIError as OpenAIError {
             // Erreur déjà typée, la relancer
+            APILogger.logError(openAIError, context: "Erreur OpenAI")
             throw openAIError
             
         } catch {
             // Erreur inconnue
             print("❌ [OpenAIService] Erreur inconnue lors de l'envoi: \(error.localizedDescription)")
+            APILogger.logError(error, context: "Erreur inconnue")
             throw OpenAIError.networkError(error)
         }
     }
