@@ -130,11 +130,27 @@ final class ChatViewModel: ObservableObject {
         Task {
             do {
                 let systemPrompt = currentSystemPrompt
-                let messageText = trimmed.isEmpty ? "[Image]" : trimmed
-                
-                print("🚀 [ChatViewModel] Appel à OpenAIService.sendMessage()...")
+
+                // ÉTAPE 5.2 : Préparer l'historique pour l'API
+                // 1. Récupérer tous les messages de la conversation
+                let allMessages = conversations[index].messages
+
+                // 2. Filtrer les messages temporaires (indicateur de chargement)
+                let filteredMessages = allMessages.filter { message in
+                    !message.contenu.contains("⏳ Génération en cours...")
+                }
+
+                // 3. Limiter aux 20 derniers messages pour économiser les tokens
+                let recentMessages = Array(filteredMessages.suffix(20))
+
+                print("🚀 [ChatViewModel] Appel à OpenAIService.sendMessage() avec historique...")
+                print("📊 [ChatViewModel] Messages dans la conversation : \(allMessages.count)")
+                print("📊 [ChatViewModel] Messages après filtrage : \(filteredMessages.count)")
+                print("📊 [ChatViewModel] Messages envoyés à l'API : \(recentMessages.count) (max 20)")
+
+                // 4. Appeler la nouvelle méthode avec historique
                 let response = try await OpenAIService.sendMessage(
-                    message: messageText,
+                    messages: recentMessages,
                     systemPrompt: systemPrompt
                 )
                 
@@ -157,9 +173,9 @@ final class ChatViewModel: ObservableObject {
                     let errorMessage: String
                     switch error {
                     case .noAPIKey:
-                        errorMessage = "❌ Aucune clé API configurée.\n\nOuvrez les Préférences (⌘,) pour configurer votre clé API OpenAI."
+                        errorMessage = "❌ Aucune clé API configurée.\n\nVérifiez votre fichier .env ou Keychain."
                     case .invalidAPIKey:
-                        errorMessage = "❌ Clé API invalide ou expirée.\n\nVérifiez votre clé API dans les Préférences."
+                        errorMessage = "❌ Clé API invalide ou expirée.\n\nVérifiez votre clé API dans le fichier .env."
                     case .networkError(let underlyingError):
                         errorMessage = "❌ Erreur réseau : \(underlyingError.localizedDescription)\n\nVérifiez votre connexion internet."
                     case .rateLimitExceeded:

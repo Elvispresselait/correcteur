@@ -14,6 +14,12 @@ final class APIKeyManager {
     private static let service = "com.correcteurpro.apiKey"
     private static let account = "openai_api_key"
     
+    /// Vérifie si on doit utiliser uniquement .env (pas de Keychain)
+    private static var useEnvOnly: Bool {
+        // Si .env contient une clé, on l'utilise exclusivement
+        return EnvLoader.get("OPENAI_API_KEY") != nil
+    }
+    
     /// Sauvegarde la clé API dans Keychain
     /// - Parameter key: La clé API à sauvegarder (format: sk-...)
     /// - Returns: true si succès, false sinon
@@ -51,10 +57,37 @@ final class APIKeyManager {
         }
     }
     
-    /// Charge la clé API depuis Keychain
+    /// Charge la clé API depuis .env (priorité) ou Keychain
     /// - Returns: La clé API si trouvée, nil sinon
     static func loadAPIKey() -> String? {
-        print("🔐 [APIKeyManager] Tentative de chargement de la clé API...")
+        print("")
+        print("═══════════════════════════════════════════════════════════════")
+        print("🔐 [APIKeyManager] DÉBUT DU CHARGEMENT DE LA CLÉ API")
+        print("═══════════════════════════════════════════════════════════════")
+        
+        // 1. PRIORITÉ : Chercher dans le fichier .env (développement)
+        print("📋 ÉTAPE 1 : Recherche dans le fichier .env")
+        print("─────────────────────────────────────────────────────────────")
+        
+        if let envKey = EnvLoader.get("OPENAI_API_KEY") {
+            let maskedKey = String(envKey.prefix(7)) + "..." + String(envKey.suffix(4))
+            print("✅ [APIKeyManager] SUCCÈS : Clé API trouvée dans .env")
+            print("   Clé masquée : \(maskedKey)")
+            print("   Longueur : \(envKey.count) caractères")
+            print("   Format valide : \(envKey.hasPrefix("sk-") ? "✅ OUI" : "❌ NON")")
+            print("ℹ️ [APIKeyManager] Keychain ignoré car .env est utilisé (pas d'accès Keychain)")
+            print("═══════════════════════════════════════════════════════════════")
+            return envKey
+        } else {
+            print("❌ [APIKeyManager] ÉCHEC : Aucune clé trouvée dans .env")
+            print("   Variable recherchée : OPENAI_API_KEY")
+            print("   Raison possible : Fichier .env non trouvé ou variable absente")
+        }
+        
+        // 2. FALLBACK : Chercher dans Keychain (production) - UNIQUEMENT si .env n'existe pas
+        print("")
+        print("📋 ÉTAPE 2 : Recherche dans Keychain (fallback)")
+        print("─────────────────────────────────────────────────────────────")
         
         // Créer le dictionnaire de requête Keychain
         let query: [String: Any] = [
@@ -73,18 +106,34 @@ final class APIKeyManager {
                let key = String(data: data, encoding: .utf8) {
                 // Masquer la clé dans les logs (afficher seulement les 7 premiers caractères)
                 let maskedKey = String(key.prefix(7)) + "..." + String(key.suffix(4))
-                print("✅ [APIKeyManager] Clé API chargée avec succès: \(maskedKey)")
+                print("✅ [APIKeyManager] SUCCÈS : Clé API trouvée dans Keychain")
+                print("   Clé masquée : \(maskedKey)")
+                print("   Longueur : \(key.count) caractères")
+                print("   Format valide : \(key.hasPrefix("sk-") ? "✅ OUI" : "❌ NON")")
+                print("═══════════════════════════════════════════════════════════════")
                 return key
             } else {
-                print("❌ [APIKeyManager] Impossible de convertir les données en String")
+                print("❌ [APIKeyManager] ERREUR : Impossible de convertir les données en String")
+                print("   Type de données : \(type(of: result))")
+                print("   Données disponibles : \(result != nil ? "✅ OUI" : "❌ NON")")
+                print("═══════════════════════════════════════════════════════════════")
                 return nil
             }
         } else if status == errSecItemNotFound {
-            print("ℹ️ [APIKeyManager] Aucune clé API trouvée dans Keychain")
+            print("❌ [APIKeyManager] ÉCHEC : Aucune clé API trouvée dans Keychain")
+            print("   Service : \(service)")
+            print("   Account : \(account)")
+            print("   OSStatus : \(status) (errSecItemNotFound)")
+            print("═══════════════════════════════════════════════════════════════")
             return nil
         } else {
             let errorMessage = getKeychainErrorMessage(status)
-            print("❌ [APIKeyManager] Échec du chargement: \(errorMessage) (OSStatus: \(status))")
+            print("❌ [APIKeyManager] ERREUR : Échec du chargement depuis Keychain")
+            print("   Message d'erreur : \(errorMessage)")
+            print("   OSStatus : \(status)")
+            print("   Service : \(service)")
+            print("   Account : \(account)")
+            print("═══════════════════════════════════════════════════════════════")
             return nil
         }
     }
@@ -117,11 +166,19 @@ final class APIKeyManager {
         }
     }
     
-    /// Vérifie si une clé API existe dans Keychain (sans la charger)
+    /// Vérifie si une clé API existe dans .env ou Keychain (sans la charger)
     /// - Returns: true si une clé existe, false sinon
     static func hasAPIKey() -> Bool {
         print("🔐 [APIKeyManager] Vérification de l'existence d'une clé API...")
         
+        // 1. Vérifier dans .env d'abord
+        if EnvLoader.get("OPENAI_API_KEY") != nil {
+            print("✅ [APIKeyManager] Une clé API existe dans .env")
+            print("ℹ️ [APIKeyManager] Keychain ignoré car .env est utilisé (pas d'accès Keychain)")
+            return true
+        }
+        
+        // 2. Vérifier dans Keychain - UNIQUEMENT si .env n'existe pas
         // Créer le dictionnaire de requête Keychain (sans retourner les données)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

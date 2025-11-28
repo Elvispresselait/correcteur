@@ -13,7 +13,6 @@ struct ChatView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Binding var isSidebarVisible: Bool
     @Binding var inputText: String
-    var onOpenSettings: (() -> Void)? = nil
     
     @State private var isRenamingConversation = false
     @State private var renameDraft = ""
@@ -38,7 +37,11 @@ struct ChatView: View {
                 canRename: viewModel.selectedConversation != nil,
                 onRename: presentRenameDialog,
                 viewModel: viewModel,
-                onOpenSettings: onOpenSettings
+                onTestFrontend: {
+                    Task {
+                        await FrontendTester.testFrontendFlow()
+                    }
+                }
             )
             
             if let conversation = viewModel.selectedConversation {
@@ -126,7 +129,7 @@ struct HeaderView: View {
     let canRename: Bool
     let onRename: () -> Void
     @ObservedObject var viewModel: ChatViewModel
-    var onOpenSettings: (() -> Void)? = nil
+    var onTestFrontend: (() -> Void)? = nil
     
     @State private var showCustomPromptSheet = false
     
@@ -190,16 +193,15 @@ struct HeaderView: View {
             .buttonStyle(.plain)
             .help("Sélectionner le prompt système")
             
-            // Bouton Préférences
-            if let onOpenSettings = onOpenSettings {
-                Button(action: onOpenSettings) {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white.opacity(0.85))
+            // Bouton de test frontend (debug)
+            if let onTestFrontend = onTestFrontend {
+                Button(action: onTestFrontend) {
+                    Image(systemName: "testtube.2")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.7))
                 }
                 .buttonStyle(.plain)
-                .help("Ouvrir les Préférences (⌘,)")
-                .padding(.trailing, 4)
+                .help("Tester le flux frontend (debug)")
             }
             
             Button(action: onRename) {
@@ -767,6 +769,13 @@ struct ImagePreviewThumbnail: View {
     )
     .frame(width: 400, height: 700)
 }
+
+
+
+
+
+
+
 
 
 

@@ -29,24 +29,30 @@ final class TestAPIService {
         do {
             // Utiliser la clé API fournie ou celle de Keychain
             let keyToUse: String?
+            let wasProvided: Bool
             if let providedKey = apiKey {
                 keyToUse = providedKey
+                wasProvided = true
                 print("🔑 Utilisation de la clé API fournie")
             } else {
                 keyToUse = APIKeyManager.loadAPIKey()
+                wasProvided = false
                 print("🔑 Utilisation de la clé API depuis Keychain")
             }
             
-            guard let apiKey = keyToUse else {
+            guard let finalApiKey = keyToUse else {
                 print("❌ Aucune clé API disponible")
                 print("   Utilisez APIKeyManager.saveAPIKey() ou fournissez une clé dans les paramètres")
                 return
             }
             
-            // Sauvegarder temporairement dans Keychain si fournie
-            if let providedKey = apiKey, providedKey != APIKeyManager.loadAPIKey() {
-                _ = APIKeyManager.saveAPIKey(providedKey)
-                print("💾 Clé API sauvegardée temporairement dans Keychain")
+            // Sauvegarder temporairement dans Keychain si fournie et différente
+            if wasProvided {
+                let currentKey = APIKeyManager.loadAPIKey()
+                if currentKey != finalApiKey {
+                    _ = APIKeyManager.saveAPIKey(finalApiKey)
+                    print("💾 Clé API sauvegardée temporairement dans Keychain")
+                }
             }
             
             let prompt = systemPrompt ?? "Tu es un assistant IA utile et respectueux."
