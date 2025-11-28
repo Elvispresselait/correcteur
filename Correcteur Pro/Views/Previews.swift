@@ -106,7 +106,11 @@ struct InputBarView_Previews: PreviewProvider {
             InputBarView(
                 inputText: .constant(""),
                 pendingImages: .constant([]),
-                onSend: {}
+                isGenerating: false,
+                onSend: {},
+                onImageAdded: {},
+                onImageError: { _ in },
+                onImageCompressed: { _ in }
             )
             .previewDisplayName("⌨️ Input vide")
             
@@ -114,7 +118,11 @@ struct InputBarView_Previews: PreviewProvider {
             InputBarView(
                 inputText: .constant("Bonjour"),
                 pendingImages: .constant([]),
-                onSend: {}
+                isGenerating: false,
+                onSend: {},
+                onImageAdded: {},
+                onImageError: { _ in },
+                onImageCompressed: { _ in }
             )
             .previewDisplayName("⌨️ Input avec texte court")
             
@@ -122,9 +130,25 @@ struct InputBarView_Previews: PreviewProvider {
             InputBarView(
                 inputText: .constant("Voici un message très long qui va s'étendre sur plusieurs lignes pour tester le comportement du TextEditor multiligne dans l'interface."),
                 pendingImages: .constant([]),
-                onSend: {}
+                isGenerating: false,
+                onSend: {},
+                onImageAdded: {},
+                onImageError: { _ in },
+                onImageCompressed: { _ in }
             )
             .previewDisplayName("⌨️ Input multiligne")
+            
+            // Input pendant génération
+            InputBarView(
+                inputText: .constant("Message en cours d'envoi..."),
+                pendingImages: .constant([]),
+                isGenerating: true,
+                onSend: {},
+                onImageAdded: {},
+                onImageError: { _ in },
+                onImageCompressed: { _ in }
+            )
+            .previewDisplayName("⌨️ Input pendant génération")
         }
         .frame(width: 400)
         .padding()

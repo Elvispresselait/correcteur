@@ -17,6 +17,15 @@ struct CorrecteurProApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .defaultSize(width: 600, height: 700)
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Préférences...") {
+                    // Notification pour ouvrir les préférences
+                    NotificationCenter.default.post(name: NSNotification.Name("OpenSettings"), object: nil)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+        }
     }
 }
 

@@ -13,14 +13,16 @@ struct Message: Identifiable, Equatable {
     let contenu: String
     let isUser: Bool
     let timestamp: Date
-    let images: [NSImage]?
+    let images: [NSImage]? // Pour l'affichage UI
+    let imageData: [ImageData]? // Pour l'envoi API (base64 compressé)
     
-    init(id: UUID = UUID(), contenu: String, isUser: Bool, timestamp: Date = Date(), images: [NSImage]? = nil) {
+    init(id: UUID = UUID(), contenu: String, isUser: Bool, timestamp: Date = Date(), images: [NSImage]? = nil, imageData: [ImageData]? = nil) {
         self.id = id
         self.contenu = contenu
         self.isUser = isUser
         self.timestamp = timestamp
         self.images = images
+        self.imageData = imageData
     }
     
     // Equatable: comparer les images par leurs données
@@ -35,11 +37,18 @@ struct Message: Identifiable, Equatable {
         // Comparer les images
         if let lhsImages = lhs.images, let rhsImages = rhs.images {
             guard lhsImages.count == rhsImages.count else { return false }
-            // Pour simplifier, on compare juste le nombre d'images
-            // Une comparaison complète nécessiterait de comparer les données pixel par pixel
-            return true
+        } else if lhs.images != nil || rhs.images != nil {
+            return false
         }
-        return lhs.images == nil && rhs.images == nil
+        
+        // Comparer les imageData
+        if let lhsData = lhs.imageData, let rhsData = rhs.imageData {
+            guard lhsData == rhsData else { return false }
+        } else if lhs.imageData != nil || rhs.imageData != nil {
+            return false
+        }
+        
+        return true
     }
 }
 

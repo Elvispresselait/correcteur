@@ -10,7 +10,7 @@ import AppKit
 
 struct TextEditorWithImagePaste: NSViewRepresentable {
     @Binding var text: String
-    let onImagePasted: (NSImage) -> Void
+    let onImagePasted: (ClipboardResult) -> Void
     
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -86,21 +86,44 @@ struct TextEditorWithImagePaste: NSViewRepresentable {
                     print("⌨️ [TextEditor] Cmd+V détecté!")
                     
                     // Vérifier le clipboard pour une image
-                    if let image = ClipboardHelper.checkClipboardForImage() {
+                    // TEMPS 1 : Accepter toutes les images sans validation de taille
+                    print("🔍 [TextEditor] Appel checkClipboardForImage (TEMPS 1: accepte toutes tailles)")
+                    let result = ClipboardHelper.checkClipboardForImage(autoCompress: false) // Pas de compression ici, se fera après upload
+                    
+                    print("🔍 [TextEditor] Résultat: image=\(result.image != nil ? "présente" : "nil"), error=\(result.error?.localizedDescription ?? "nil")")
+                    
+                    if result.image != nil {
                         print("✅ [TextEditor] Image trouvée dans le clipboard, interception du paste")
-                        
-                        // Ajouter l'image
-                        DispatchQueue.main.async {
-                            self.parent.onImagePasted(image)
+                        if let mimeType = result.mimeType {
+                            print("📄 [TextEditor] Type MIME: \(mimeType)")
+                        }
+                        if let sizeMB = result.sizeMB {
+                            print("📊 [TextEditor] Taille: \(String(format: "%.2f", sizeMB)) MB")
                         }
                         
-                        // Bloquer le paste texte
+                        // TEMPS 1 : Accepter toutes les images, même si erreur imageTooLarge
+                        // La compression se fera après upload (TEMPS 2)
+                        DispatchQueue.main.async {
+                            self.parent.onImagePasted(result)
+                        }
+                        
+                        // Bloquer le paste texte si image trouvée (même si grande)
+                        print("✅ [TextEditor] Image acceptée, blocage du paste texte")
                         return nil
                     } else {
                         print("📝 [TextEditor] Pas d'image, laisser TextEditor gérer le paste texte")
-                        // Laisser passer l'événement pour que TextEditor gère le texte
-                        return event
+                        if let error = result.error {
+                            // Ne bloquer que les erreurs non liées à la taille
+                            if case .imageTooLarge = error {
+                                print("ℹ️ [TextEditor] Image grande mais acceptée (TEMPS 1)")
+                            } else {
+                                print("⚠️ [TextEditor] Erreur: \(error.localizedDescription)")
+                            }
+                        }
                     }
+                    
+                    // Laisser passer l'événement pour que TextEditor gère le texte
+                    return event
                 }
                 
                 return event

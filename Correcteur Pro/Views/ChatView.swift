@@ -13,10 +13,12 @@ struct ChatView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Binding var isSidebarVisible: Bool
     @Binding var inputText: String
+    var onOpenSettings: (() -> Void)? = nil
     
     @State private var isRenamingConversation = false
     @State private var renameDraft = ""
     @State private var pendingImages: [NSImage] = []
+    @State private var toast: ToastMessage?
     
     private let chatGradient = LinearGradient(
         colors: [
@@ -35,7 +37,8 @@ struct ChatView: View {
                 isSidebarVisible: $isSidebarVisible,
                 canRename: viewModel.selectedConversation != nil,
                 onRename: presentRenameDialog,
-                viewModel: viewModel
+                viewModel: viewModel,
+                onOpenSettings: onOpenSettings
             )
             
             if let conversation = viewModel.selectedConversation {
@@ -47,11 +50,30 @@ struct ChatView: View {
             InputBarView(
                 inputText: $inputText,
                 pendingImages: $pendingImages,
-                onSend: sendMessage
+                isGenerating: viewModel.isGenerating, // ÉTAPE 4.2 : Désactiver le bouton pendant la génération
+                onSend: sendMessage,
+                onImageAdded: { showToast(.success("Image ajoutée")) },
+                onImageError: { error in showToast(.error(error.localizedDescription)) },
+                onImageCompressed: { message in
+                    // TEMPS 2 : Afficher toast de compression
+                    if message.contains("compressée") {
+                        showToast(.success(message))
+                    } else {
+                        showToast(.warning(message))
+                    }
+                }
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(chatGradient)
+        .toast($toast)
+        .onChange(of: toast) { oldValue, newValue in
+            if let toast = newValue {
+                DispatchQueue.main.asyncAfter(deadline: .now() + toast.duration) {
+                    self.toast = nil
+                }
+            }
+        }
         .alert("Renommer la conversation", isPresented: $isRenamingConversation, actions: {
             TextField("Nouveau titre", text: $renameDraft)
             Button("Annuler", role: .cancel) {
@@ -75,9 +97,26 @@ struct ChatView: View {
     
     private func sendMessage() {
         let imagesToSend = pendingImages.isEmpty ? nil : pendingImages
-        guard viewModel.sendMessage(inputText, images: imagesToSend) else { return }
+        
+        // TEMPS 2 : Les images dans pendingImages sont déjà compressées
+        // Plus besoin de vérifier la taille avant envoi
+        
+        guard viewModel.sendMessage(inputText, images: imagesToSend) else {
+            showToast(.error("Impossible d'envoyer le message"))
+            return
+        }
+        
+        // Afficher un toast de succès si des images ont été envoyées
+        if let images = imagesToSend, !images.isEmpty {
+            showToast(.success("\(images.count) image\(images.count > 1 ? "s" : "") envoyée\(images.count > 1 ? "s" : "")"))
+        }
+        
         inputText = ""
         pendingImages = []
+    }
+    
+    private func showToast(_ message: ToastMessage) {
+        toast = message
     }
 }
 
@@ -87,6 +126,7 @@ struct HeaderView: View {
     let canRename: Bool
     let onRename: () -> Void
     @ObservedObject var viewModel: ChatViewModel
+    var onOpenSettings: (() -> Void)? = nil
     
     @State private var showCustomPromptSheet = false
     
@@ -149,6 +189,18 @@ struct HeaderView: View {
             }
             .buttonStyle(.plain)
             .help("Sélectionner le prompt système")
+            
+            // Bouton Préférences
+            if let onOpenSettings = onOpenSettings {
+                Button(action: onOpenSettings) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white.opacity(0.85))
+                }
+                .buttonStyle(.plain)
+                .help("Ouvrir les Préférences (⌘,)")
+                .padding(.trailing, 4)
+            }
             
             Button(action: onRename) {
                 Label("Renommer", systemImage: "pencil")
@@ -448,7 +500,11 @@ struct EmptyStateView: View {
 struct InputBarView: View {
     @Binding var inputText: String
     @Binding var pendingImages: [NSImage]
+    let isGenerating: Bool // ÉTAPE 4.2 : État de génération pour désactiver le bouton
     let onSend: () -> Void
+    let onImageAdded: () -> Void
+    let onImageError: (Error) -> Void
+    let onImageCompressed: (String) -> Void // TEMPS 2 : Callback pour notifier la compression
     
     private let inputBackground = Color.white.opacity(0.08)
     private let borderColor = Color.white.opacity(0.2)
@@ -465,14 +521,9 @@ struct InputBarView: View {
             
             // Zone de saisie
             HStack(alignment: .bottom, spacing: 12) {
-                // Bouton de test pour diagnostiquer le clipboard
+                // Bouton pour coller une image
                 Button(action: {
-                    print("\n🔍 [InputBar] Test manuel du clipboard...")
-                    ClipboardHelper.diagnostic()
-                    if let image = ClipboardHelper.checkClipboardForImage() {
-                        print("✅ [InputBar] Image ajoutée depuis le clipboard!")
-                        pendingImages.append(image)
-                    }
+                    handleImagePasteFromClipboard()
                 }) {
                     Image(systemName: "photo.badge.plus")
                         .font(.system(size: 14))
@@ -482,11 +533,10 @@ struct InputBarView: View {
                         .cornerRadius(6)
                 }
                 .buttonStyle(.plain)
-                .help("Tester le clipboard (diagnostic)")
+                .help("Coller une image depuis le presse-papiers")
                 
-                TextEditorWithImagePaste(text: $inputText) { image in
-                    print("✅ [InputBar] Image collée via TextEditorWithImagePaste!")
-                    pendingImages.append(image)
+                TextEditorWithImagePaste(text: $inputText) { result in
+                    handleImagePasteResult(result)
                 }
                 .frame(minHeight: 36, maxHeight: 80)
                 .padding(8)
@@ -500,7 +550,7 @@ struct InputBarView: View {
                 .accentColor(Color(hex: "5C9DFF"))
                 
                 Button(action: onSend) {
-                    Image(systemName: "paperplane.fill")
+                    Image(systemName: isGenerating ? "stop.circle.fill" : "paperplane.fill")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
                         .padding(14)
@@ -510,7 +560,7 @@ struct InputBarView: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && pendingImages.isEmpty)
+                .disabled((inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && pendingImages.isEmpty) || isGenerating) // ÉTAPE 4.2 : Désactiver pendant la génération
             }
             .padding(.horizontal, 24)
             .padding(.top, pendingImages.isEmpty ? 12 : 0)
@@ -536,18 +586,100 @@ struct InputBarView: View {
         )
     }
     
-    // Fonction simplifiée pour gérer les images depuis le clipboard
-    // Maintenant gérée directement par TextEditorWithImagePaste
+    // Gestion du collage d'image depuis le clipboard
     private func handleImagePasteFromClipboard() {
-        if let image = ClipboardHelper.checkClipboardForImage() {
-            print("✅ [InputBar] Image ajoutée depuis le clipboard!")
-            pendingImages.append(image)
+        let result = ClipboardHelper.checkClipboardForImage()
+        handleImagePasteResult(result)
+    }
+    
+    // Traite le résultat du collage d'image avec gestion d'erreurs
+    // TEMPS 1 : Accepter toutes les images sans vérification de taille
+    // TEMPS 2 : Compression automatique après upload
+    private func handleImagePasteResult(_ result: ClipboardResult) {
+        // Ne bloquer que les erreurs critiques (clipboard vide, format invalide)
+        // Plus de vérification de taille - toutes les images sont acceptées
+        if let error = result.error {
+            // Ne bloquer que les erreurs non liées à la taille
+            if case .imageTooLarge = error {
+                // TEMPS 1 : Plus de rejet pour taille, on accepte quand même
+                print("ℹ️ [InputBar] Image grande détectée, sera compressée après upload")
+            } else {
+                // Autres erreurs (vide, format invalide) : bloquer
+                print("❌ [InputBar] Erreur: \(error.localizedDescription)")
+                onImageError(error)
+                return
+            }
+        }
+        
+        guard let image = result.image else {
+            print("⚠️ [InputBar] Aucune image dans le résultat")
+            onImageError(ClipboardError.empty)
+            return
+        }
+        
+        let originalSizeMB = result.sizeMB
+        print("✅ [InputBar] Image ajoutée: \(image.size.width)x\(image.size.height)")
+        if let mimeType = result.mimeType {
+            print("📄 [InputBar] Type MIME: \(mimeType)")
+        }
+        if let sizeMB = originalSizeMB {
+            print("📊 [InputBar] Taille originale: \(String(format: "%.2f", sizeMB)) MB")
+        }
+        
+        // TEMPS 2 : Compression automatique après upload
+        let finalImage = compressImageIfNeeded(image, originalSizeMB: originalSizeMB)
+        
+        // Animation d'ajout avec l'image (compressée ou originale)
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            pendingImages.append(finalImage)
+        }
+        
+        onImageAdded()
+    }
+    
+    /// TEMPS 2 : Compresse l'image si elle est > 2MB
+    /// - Parameters:
+    ///   - image: Image à compresser
+    ///   - originalSizeMB: Taille originale en MB (optionnel, pour les logs)
+    /// - Returns: Image compressée si > 2MB, sinon image originale
+    private func compressImageIfNeeded(_ image: NSImage, originalSizeMB: Double?) -> NSImage {
+        // Vérifier la taille actuelle
+        let currentSizeMB = image.sizeInMB() ?? originalSizeMB ?? 0.0
+        let targetSizeMB: Double = 2.0
+        
+        // Si image <= 2MB, pas besoin de compression
+        guard currentSizeMB > targetSizeMB else {
+            print("✅ [InputBar] Image déjà sous \(targetSizeMB) MB, pas de compression nécessaire")
+            return image
+        }
+        
+        print("🔧 [InputBar] TEMPS 2: Compression automatique activée (image > \(targetSizeMB) MB)...")
+        print("📊 [InputBar] Compression: \(String(format: "%.2f", currentSizeMB)) MB -> cible: \(targetSizeMB) MB")
+        
+        // Compresser l'image
+        if let compressed = image.compressToMaxSize(maxSizeMB: targetSizeMB) {
+            let compressedSizeMB = compressed.sizeInMB() ?? 0.0
+            let compressionRatio = (compressedSizeMB / currentSizeMB) * 100
+            
+            print("✅ [InputBar] Compression réussie: \(String(format: "%.2f", currentSizeMB)) MB -> \(String(format: "%.2f", compressedSizeMB)) MB (\(String(format: "%.1f", compressionRatio))%)")
+            
+            // Notifier la compression via callback
+            let message = String(format: "Image compressée: %.1f MB → %.1f MB", currentSizeMB, compressedSizeMB)
+            onImageCompressed(message)
+            
+            return compressed
+        } else {
+            print("⚠️ [InputBar] Échec de la compression, image originale conservée")
+            // Notifier l'échec via callback
+            let warningMessage = String(format: "Impossible de compresser l'image (%.1f MB). Elle sera envoyée telle quelle.", currentSizeMB)
+            onImageCompressed(warningMessage)
+            return image
         }
     }
     
     private var sendButtonColor: Color {
         let isEmpty = inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && pendingImages.isEmpty
-        if isEmpty {
+        if isEmpty || isGenerating { // ÉTAPE 4.2 : Griser pendant la génération
             return Color.white.opacity(0.18)
         }
         return Color(hex: "4F8CFF")
@@ -581,6 +713,8 @@ struct ImagePreviewThumbnail: View {
     let image: NSImage
     let onRemove: () -> Void
     
+    @State private var isAnimating = false
+    
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Image(nsImage: image)
@@ -592,6 +726,12 @@ struct ImagePreviewThumbnail: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.white.opacity(0.2), lineWidth: 1)
                 )
+                .scaleEffect(isAnimating ? 1.0 : 0.95)
+                .opacity(isAnimating ? 1.0 : 0.8)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isAnimating)
+                .onAppear {
+                    isAnimating = true
+                }
             
             Button(action: onRemove) {
                 Image(systemName: "xmark.circle.fill")
@@ -627,6 +767,30 @@ struct ImagePreviewThumbnail: View {
     )
     .frame(width: 400, height: 700)
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

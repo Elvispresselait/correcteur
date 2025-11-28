@@ -24,6 +24,7 @@ final class ChatViewModel: ObservableObject {
     @Published var selectedConversationID: UUID?
     @Published var promptType: SystemPromptType = .correcteur
     @Published var customPrompt: String = ""
+    @Published var isGenerating: Bool = false // État de chargement pour l'API
     
     var currentSystemPrompt: String {
         switch promptType {
@@ -86,15 +87,232 @@ final class ChatViewModel: ObservableObject {
             return false
         }
         
-        let userMessage = Message(contenu: trimmed, isUser: true, images: images)
+        // TEMPS 3 : Convertir les images compressées en ImageData pour l'API
+        // Les images dans pendingImages sont déjà compressées (TEMPS 2)
+        var imageDataArray: [ImageData]? = nil
+        if let images = images, !images.isEmpty {
+            print("🖼️ [ChatViewModel] TEMPS 3: Conversion de \(images.count) image(s) compressée(s) en ImageData...")
+            print("ℹ️ [ChatViewModel] Les images sont déjà compressées (TEMPS 2), conversion directe en base64")
+            imageDataArray = convertImagesToImageData(images, alreadyCompressed: true)
+            
+            if let imageData = imageDataArray {
+                print("✅ [ChatViewModel] \(imageData.count) image(s) convertie(s) avec succès")
+                for (index, data) in imageData.enumerated() {
+                    print("  Image \(index + 1): \(String(format: "%.2f", data.originalSizeMB)) MB -> \(String(format: "%.2f", data.finalSizeMB)) MB (\(data.format))")
+                    if data.wasCompressed {
+                        print("    Compression: \(String(format: "%.1f", data.compressionRatio * 100))%")
+                    }
+                    print("    Base64 prêt pour l'API")
+                }
+            } else {
+                print("❌ [ChatViewModel] Échec de la conversion des images - aucune image n'a pu être convertie")
+                // Note: On continue quand même pour ne pas bloquer l'envoi du message texte
+            }
+        }
+        
+        let userMessage = Message(contenu: trimmed, isUser: true, images: images, imageData: imageDataArray)
         conversations[index].messages.append(userMessage)
         
-        let assistantResponse = Message(
-            contenu: "Vous avez dit : \(trimmed.isEmpty ? "[Image]" : trimmed)",
+        // ÉTAPE 4.2 : Remplacer l'echo par un appel réel à l'API OpenAI
+        // Créer un message temporaire avec typing indicator
+        let typingMessageID = UUID()
+        let typingMessage = Message(
+            id: typingMessageID,
+            contenu: "⏳ Génération en cours...",
             isUser: false
         )
-        conversations[index].messages.append(assistantResponse)
+        conversations[index].messages.append(typingMessage)
+        
+        // Désactiver l'envoi pendant la génération
+        isGenerating = true
+        
+        // Appeler l'API OpenAI en async
+        Task {
+            do {
+                let systemPrompt = currentSystemPrompt
+                let messageText = trimmed.isEmpty ? "[Image]" : trimmed
+                
+                print("🚀 [ChatViewModel] Appel à OpenAIService.sendMessage()...")
+                let response = try await OpenAIService.sendMessage(
+                    message: messageText,
+                    systemPrompt: systemPrompt
+                )
+                
+                // Remplacer le message temporaire par la vraie réponse
+                await MainActor.run {
+                    if let messageIndex = conversations[index].messages.firstIndex(where: { $0.id == typingMessageID }) {
+                        conversations[index].messages[messageIndex] = Message(
+                            id: typingMessageID,
+                            contenu: response,
+                            isUser: false
+                        )
+                    }
+                    isGenerating = false
+                    print("✅ [ChatViewModel] Réponse reçue et affichée")
+                }
+                
+            } catch let error as OpenAIError {
+                // Gérer les erreurs de l'API
+                await MainActor.run {
+                    let errorMessage: String
+                    switch error {
+                    case .noAPIKey:
+                        errorMessage = "❌ Aucune clé API configurée.\n\nOuvrez les Préférences (⌘,) pour configurer votre clé API OpenAI."
+                    case .invalidAPIKey:
+                        errorMessage = "❌ Clé API invalide ou expirée.\n\nVérifiez votre clé API dans les Préférences."
+                    case .networkError(let underlyingError):
+                        errorMessage = "❌ Erreur réseau : \(underlyingError.localizedDescription)\n\nVérifiez votre connexion internet."
+                    case .rateLimitExceeded:
+                        errorMessage = "❌ Limite de requêtes atteinte.\n\nRéessayez dans quelques instants."
+                    case .serverError(let code):
+                        errorMessage = "❌ Erreur serveur OpenAI (\(code)).\n\nRéessayez plus tard."
+                    case .invalidResponse, .emptyResponse:
+                        errorMessage = "❌ Réponse invalide de l'API.\n\nRéessayez ou contactez le support."
+                    }
+                    
+                    // Remplacer le message temporaire par le message d'erreur
+                    if let messageIndex = conversations[index].messages.firstIndex(where: { $0.id == typingMessageID }) {
+                        conversations[index].messages[messageIndex] = Message(
+                            id: typingMessageID,
+                            contenu: errorMessage,
+                            isUser: false
+                        )
+                    }
+                    isGenerating = false
+                    print("❌ [ChatViewModel] Erreur API: \(error.localizedDescription)")
+                }
+                
+            } catch {
+                // Erreur inconnue
+                await MainActor.run {
+                    let errorMessage = "❌ Erreur inattendue : \(error.localizedDescription)"
+                    if let messageIndex = conversations[index].messages.firstIndex(where: { $0.id == typingMessageID }) {
+                        conversations[index].messages[messageIndex] = Message(
+                            id: typingMessageID,
+                            contenu: errorMessage,
+                            isUser: false
+                        )
+                    }
+                    isGenerating = false
+                    print("❌ [ChatViewModel] Erreur inconnue: \(error.localizedDescription)")
+                }
+            }
+        }
+        
         return true
+    }
+    
+    /// Convertit un tableau de NSImage en ImageData
+    /// - Parameter alreadyCompressed: Si true, les images sont déjà compressées (TEMPS 2), pas besoin de re-compresser
+    private func convertImagesToImageData(_ images: [NSImage], alreadyCompressed: Bool = false) -> [ImageData]? {
+        var imageDataArray: [ImageData] = []
+        
+        for (index, image) in images.enumerated() {
+            guard let imageData = convertImageToImageData(image, alreadyCompressed: alreadyCompressed, index: index + 1) else {
+                print("❌ [ChatViewModel] Échec de conversion pour l'image \(index + 1)")
+                continue
+            }
+            imageDataArray.append(imageData)
+        }
+        
+        return imageDataArray.isEmpty ? nil : imageDataArray
+    }
+    
+    /// Convertit une NSImage en ImageData
+    /// - Parameters:
+    ///   - image: Image à convertir (déjà compressée si alreadyCompressed = true)
+    ///   - alreadyCompressed: Si true, l'image est déjà compressée (TEMPS 2), pas besoin de re-compresser
+    ///   - index: Index de l'image (pour les logs)
+    /// - Returns: ImageData ou nil si échec
+    private func convertImageToImageData(_ image: NSImage, alreadyCompressed: Bool = false, index: Int = 1) -> ImageData? {
+        let currentSizeMB = image.sizeInMB() ?? 0.0
+        let size = image.size
+        
+        print("🖼️ [ChatViewModel] TEMPS 3: Conversion image \(index): \(Int(size.width))x\(Int(size.height)), \(String(format: "%.2f", currentSizeMB)) MB")
+        
+        // TEMPS 3 : Les images sont déjà compressées (TEMPS 2), pas besoin de re-compresser
+        let finalImage: NSImage
+        let compressedSizeMB: Double?
+        let originalSizeMB: Double
+        
+        if alreadyCompressed {
+            // Image déjà compressée (TEMPS 2), utiliser directement
+            print("✅ [ChatViewModel] Image \(index) déjà compressée (TEMPS 2), conversion directe en base64")
+            finalImage = image
+            // Pour les images déjà compressées, on stocke la taille actuelle comme compressedSizeMB
+            // et originalSizeMB = compressedSizeMB (car on ne connaît pas la taille originale)
+            compressedSizeMB = currentSizeMB
+            originalSizeMB = currentSizeMB
+        } else {
+            // Compression si nécessaire (fallback pour compatibilité)
+            print("⚠️ [ChatViewModel] Image \(index) non compressée, compression maintenant...")
+            let compressedImage = image.compressToMaxSize(maxSizeMB: NSImage.maxSizeMB)
+            finalImage = compressedImage ?? image
+            compressedSizeMB = compressedImage?.sizeInMB()
+            originalSizeMB = currentSizeMB
+        }
+        
+        // Vérifier la taille finale
+        if let finalSizeMB = finalImage.sizeInMB(), finalSizeMB > NSImage.maxSizeMB {
+            print("⚠️ [ChatViewModel] Image \(index) toujours > \(NSImage.maxSizeMB) MB après traitement: \(String(format: "%.2f", finalSizeMB)) MB")
+            // On continue quand même, mais on log l'avertissement
+        }
+        
+        // Déterminer le format
+        let format: String
+        if finalImage.hasAlphaChannel() {
+            format = "png"
+        } else {
+            format = "jpeg"
+        }
+        
+        // Convertir en base64 (skipCompression = true si déjà compressée pour éviter double compression)
+        guard let base64 = finalImage.toBase64(maxSizeMB: NSImage.maxSizeMB, skipCompression: alreadyCompressed) else {
+            print("❌ [ChatViewModel] Échec de la conversion base64 pour l'image \(index)")
+            return nil
+        }
+        
+        // Validation du format base64
+        guard base64.hasPrefix("data:image/") && base64.contains(";base64,") else {
+            print("❌ [ChatViewModel] Format base64 invalide pour l'image \(index): \(base64.prefix(50))...")
+            return nil
+        }
+        
+        let imageData = ImageData(
+            originalSizeMB: originalSizeMB,
+            compressedSizeMB: compressedSizeMB, // Toujours stocker compressedSizeMB si disponible
+            format: format,
+            base64: base64,
+            width: Int(size.width),
+            height: Int(size.height)
+        )
+        
+        // Validation finale
+        guard imageData.isValidBase64 else {
+            print("❌ [ChatViewModel] ImageData invalide pour l'image \(index)")
+            return nil
+        }
+        
+        // Logs détaillés
+        if alreadyCompressed {
+            let base64Size = imageData.base64SizeMB
+            print("✅ [ChatViewModel] Image \(index) convertie en base64 (déjà compressée à \(String(format: "%.2f", currentSizeMB)) MB)")
+            print("  📦 Base64: \(String(format: "%.2f", base64Size)) MB, format: \(format)")
+        } else if let compressed = compressedSizeMB {
+            let ratio = (compressed / originalSizeMB) * 100
+            let originalStr = String(format: "%.2f", originalSizeMB)
+            let compressedStr = String(format: "%.2f", compressed)
+            let ratioStr = String(format: "%.1f", ratio)
+            let base64Size = imageData.base64SizeMB
+            print("✅ [ChatViewModel] Image \(index) compressée: \(ratioStr)% (\(originalStr) MB -> \(compressedStr) MB)")
+            print("  📦 Base64: \(String(format: "%.2f", base64Size)) MB, format: \(format)")
+        } else {
+            let base64Size = imageData.base64SizeMB
+            print("ℹ️ [ChatViewModel] Image \(index) pas de compression nécessaire")
+            print("  📦 Base64: \(String(format: "%.2f", base64Size)) MB, format: \(format)")
+        }
+        
+        return imageData
     }
 }
 
