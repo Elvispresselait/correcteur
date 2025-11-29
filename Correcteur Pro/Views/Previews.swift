@@ -224,7 +224,9 @@ private struct ChatPreviewWrapper: View {
         ChatView(
             viewModel: viewModel,
             isSidebarVisible: .constant(true),
-            inputText: $inputText
+            inputText: $inputText,
+            isPromptEditorOpen: .constant(false),
+            isColumnMode: false
         )
     }
 }
@@ -232,12 +234,14 @@ private struct ChatPreviewWrapper: View {
 private struct EmptyChatPreviewWrapper: View {
     @StateObject private var viewModel = ChatViewModel(conversations: [])
     @State private var inputText: String = ""
-    
+
     var body: some View {
         ChatView(
             viewModel: viewModel,
             isSidebarVisible: .constant(true),
-            inputText: $inputText
+            inputText: $inputText,
+            isPromptEditorOpen: .constant(false),
+            isColumnMode: false
         )
     }
 }

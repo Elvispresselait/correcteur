@@ -12,6 +12,10 @@ struct ContentView: View {
     @StateObject private var debugLogger = DebugLogger.shared
     @State private var isSidebarVisible: Bool = true
     @State private var inputText: String = ""
+    @State private var isPromptEditorOpen: Bool = false
+
+    /// Seuil de largeur pour passer en mode colonne (éditeur à droite)
+    private let columnModeThreshold: CGFloat = 800
 
     private let backgroundGradient = LinearGradient(
         colors: [
@@ -24,39 +28,54 @@ struct ContentView: View {
     )
 
     var body: some View {
-        ZStack {
-            backgroundGradient
-                .ignoresSafeArea()
+        GeometryReader { geometry in
+            let isColumnMode = geometry.size.width >= columnModeThreshold
 
-            VStack(spacing: 0) {
-                HStack(spacing: 0) {
-                    if isSidebarVisible {
-                        SidebarView(viewModel: viewModel)
-                            .frame(width: 230)
-                            .transition(.move(edge: .leading))
-                    }
+            ZStack {
+                backgroundGradient
+                    .ignoresSafeArea()
 
-                    ChatView(
-                        viewModel: viewModel,
-                        isSidebarVisible: $isSidebarVisible,
-                        inputText: $inputText
-                    )
-                }
-                .padding(0)
-                .background(
-                    Rectangle()
-                        .fill(Color.white.opacity(0.03))
-                        .overlay(
-                            Rectangle()
-                                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                VStack(spacing: 0) {
+                    HStack(spacing: 0) {
+                        // Sidebar
+                        if isSidebarVisible {
+                            SidebarView(viewModel: viewModel)
+                                .frame(width: 230)
+                                .transition(.move(edge: .leading))
+                        }
+
+                        // Zone de chat
+                        ChatView(
+                            viewModel: viewModel,
+                            isSidebarVisible: $isSidebarVisible,
+                            inputText: $inputText,
+                            isPromptEditorOpen: $isPromptEditorOpen,
+                            isColumnMode: isColumnMode
                         )
-                        .shadow(color: Color.black.opacity(0.45), radius: 40, x: 0, y: 20)
-                )
 
-                // Console de debug (si activée)
-                if debugLogger.isEnabled {
-                    DebugConsoleView()
-                        .transition(.move(edge: .bottom))
+                        // Colonne éditeur de prompt (mode large uniquement)
+                        if isColumnMode && isPromptEditorOpen {
+                            PromptEditorColumn(viewModel: viewModel, isOpen: $isPromptEditorOpen)
+                                .frame(width: 320)
+                                .transition(.move(edge: .trailing))
+                        }
+                    }
+                    .padding(0)
+                    .background(
+                        Rectangle()
+                            .fill(Color.white.opacity(0.03))
+                            .overlay(
+                                Rectangle()
+                                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.45), radius: 40, x: 0, y: 20)
+                    )
+
+                    // Console de debug (si activée)
+                    if debugLogger.isEnabled {
+                        DebugConsoleView()
+                            .transition(.move(edge: .bottom))
+                    }
                 }
             }
         }

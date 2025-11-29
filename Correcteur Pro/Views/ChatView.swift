@@ -13,12 +13,13 @@ struct ChatView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Binding var isSidebarVisible: Bool
     @Binding var inputText: String
+    @Binding var isPromptEditorOpen: Bool
+    let isColumnMode: Bool
 
     @State private var isRenamingConversation = false
     @State private var renameDraft = ""
     @State private var pendingImages: [NSImage] = []
     @State private var toast: ToastMessage?
-    @State private var isPromptEditorOpen = false
     
     private let chatGradient = LinearGradient(
         colors: [
@@ -46,8 +47,9 @@ struct ChatView: View {
                 }
             )
 
-            // Éditeur de prompt (s'affiche en dessous du header si ouvert)
-            if isPromptEditorOpen {
+            // Éditeur de prompt inline (mode compact uniquement)
+            // En mode colonne (large), l'éditeur s'affiche à droite via PromptEditorColumn
+            if isPromptEditorOpen && !isColumnMode {
                 PromptEditorView(viewModel: viewModel, isOpen: $isPromptEditorOpen)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -658,6 +660,194 @@ struct PromptEditorView: View {
     }
 }
 
+/// Colonne d'édition de prompt (mode large - s'affiche à droite)
+struct PromptEditorColumn: View {
+    @ObservedObject var viewModel: ChatViewModel
+    @Binding var isOpen: Bool
+    @State private var editedPrompt: String = ""
+    @State private var originalPrompt: String = ""
+    @FocusState private var isFocused: Bool
+
+    /// Récupère le prompt sauvegardé selon le type sélectionné
+    private var savedPrompt: String {
+        ChatViewModel.getSavedPrompt(for: viewModel.promptType)
+    }
+
+    /// Vérifie si le prompt a été modifié (mode temporaire)
+    private var isModified: Bool {
+        editedPrompt != originalPrompt
+    }
+
+    private let columnBackground = LinearGradient(
+        colors: [
+            Color(hex: "0A1628"),
+            Color(hex: "0D1D35")
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header de la colonne
+            HStack {
+                HStack(spacing: 8) {
+                    Text(viewModel.promptType.icon)
+                        .font(.system(size: 16))
+                    Text(viewModel.promptType.shortName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+
+                Spacer()
+
+                // Indicateur de modification
+                if isModified {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 8, height: 8)
+                }
+
+                // Bouton fermer
+                Button(action: { handleClose() }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                        .padding(6)
+                        .background(Circle().fill(Color.white.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(isModified ? Color.red.opacity(0.15) : Color.black.opacity(0.3))
+
+            Divider()
+                .background(Color.white.opacity(0.1))
+
+            // Zone d'édition (prend tout l'espace vertical)
+            TextEditor(text: $editedPrompt)
+                .font(.system(size: 13, design: .monospaced))
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
+                .foregroundColor(.white)
+                .focused($isFocused)
+                .padding(12)
+
+            Divider()
+                .background(Color.white.opacity(0.1))
+
+            // Footer avec actions
+            VStack(spacing: 10) {
+                // Compteur de caractères
+                HStack {
+                    Text("\(editedPrompt.count) caractères")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.5))
+                    Spacer()
+                }
+
+                // Boutons d'action
+                if isModified {
+                    HStack(spacing: 10) {
+                        Button(action: discardChanges) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.uturn.backward")
+                                    .font(.system(size: 10))
+                                Text("Annuler")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundColor(.white.opacity(0.7))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(action: saveChanges) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                Text("Sauvegarder")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Color.green.opacity(0.7))
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else {
+                    // Bouton pour dupliquer
+                    Button(action: createBranch) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.triangle.branch")
+                                .font(.system(size: 10))
+                            Text("Dupliquer")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundColor(.white.opacity(0.7))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(isModified ? Color.red.opacity(0.1) : Color.clear)
+        }
+        .frame(maxHeight: .infinity)
+        .background(columnBackground)
+        .overlay(
+            Rectangle()
+                .fill(Color.white.opacity(0.05))
+                .frame(width: 1),
+            alignment: .leading
+        )
+        .onAppear {
+            editedPrompt = savedPrompt
+            originalPrompt = savedPrompt
+            isFocused = true
+        }
+        .onChange(of: viewModel.promptType) { _, _ in
+            editedPrompt = savedPrompt
+            originalPrompt = savedPrompt
+        }
+    }
+
+    private func saveChanges() {
+        ChatViewModel.savePrompt(editedPrompt, for: viewModel.promptType)
+        originalPrompt = editedPrompt
+    }
+
+    private func discardChanges() {
+        editedPrompt = originalPrompt
+    }
+
+    private func createBranch() {
+        let name = "\(viewModel.promptType.shortName) (copie)"
+        viewModel.createCustomPrompt(name: name, icon: "📝", content: editedPrompt)
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isOpen = false
+        }
+    }
+
+    private func handleClose() {
+        if isModified {
+            viewModel.temporaryPrompt = editedPrompt
+        }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isOpen = false
+        }
+    }
+}
+
 struct CustomPromptSheet: View {
     @ObservedObject var viewModel: ChatViewModel
     @Environment(\.dismiss) private var dismiss
@@ -1161,7 +1351,9 @@ struct ImagePreviewThumbnail: View {
     ChatView(
         viewModel: .preview,
         isSidebarVisible: .constant(true),
-        inputText: .constant("")
+        inputText: .constant(""),
+        isPromptEditorOpen: .constant(false),
+        isColumnMode: false
     )
     .frame(width: 400, height: 700)
 }
@@ -1170,7 +1362,9 @@ struct ImagePreviewThumbnail: View {
     ChatView(
         viewModel: ChatViewModel(conversations: []),
         isSidebarVisible: .constant(true),
-        inputText: .constant("")
+        inputText: .constant(""),
+        isPromptEditorOpen: .constant(false),
+        isColumnMode: false
     )
     .frame(width: 400, height: 700)
 }
