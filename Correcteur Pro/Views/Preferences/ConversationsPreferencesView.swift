@@ -131,9 +131,38 @@ struct ConversationsPreferencesView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+
+            // SECTION : Prompts archivés
+            Section("Prompts archivés") {
+                if prefsManager.archivedPrompts.isEmpty {
+                    HStack {
+                        Image(systemName: "archivebox")
+                            .foregroundColor(.secondary)
+                        Text("Aucun prompt archivé")
+                            .foregroundColor(.secondary)
+                    }
+                    Text("Les prompts archivés apparaîtront ici. Ils seront supprimés définitivement après 30 jours.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(prefsManager.archivedPrompts) { prompt in
+                        ArchivedPromptRow(prompt: prompt) {
+                            // Restaurer
+                            prefsManager.restorePrompt(id: prompt.id)
+                        } onDelete: {
+                            // Supprimer définitivement
+                            prefsManager.deletePromptPermanently(id: prompt.id)
+                        }
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear {
+            // Nettoyer les prompts expirés au lancement
+            prefsManager.cleanupExpiredPrompts()
+        }
         .fileImporter(
             isPresented: $showingFolderPicker,
             allowedContentTypes: [.folder],
@@ -180,7 +209,67 @@ Et pour les autres paragraphes qui restent, je veux que tu rajoutes une croix ve
     }
 }
 
+// MARK: - Composants
+
+/// Ligne pour un prompt archivé avec actions restaurer/supprimer
+struct ArchivedPromptRow: View {
+    let prompt: CustomPrompt
+    let onRestore: () -> Void
+    let onDelete: () -> Void
+
+    @State private var showDeleteConfirmation = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icône et nom
+            HStack(spacing: 8) {
+                Text(prompt.icon)
+                    .font(.system(size: 20))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(prompt.name)
+                        .font(.body)
+
+                    if let days = prompt.daysUntilDeletion {
+                        Text("Suppression dans \(days) jour\(days > 1 ? "s" : "")")
+                            .font(.caption)
+                            .foregroundColor(days <= 7 ? .red : .secondary)
+                    }
+                }
+            }
+
+            Spacer()
+
+            // Boutons d'action
+            HStack(spacing: 8) {
+                Button(action: onRestore) {
+                    Label("Restaurer", systemImage: "arrow.uturn.backward")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    Label("Supprimer", systemImage: "trash")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(.vertical, 4)
+        .alert("Supprimer définitivement ?", isPresented: $showDeleteConfirmation) {
+            Button("Annuler", role: .cancel) {}
+            Button("Supprimer", role: .destructive) {
+                onDelete()
+            }
+        } message: {
+            Text("Le prompt \"\(prompt.name)\" sera supprimé définitivement. Cette action est irréversible.")
+        }
+    }
+}
+
 #Preview {
     ConversationsPreferencesView()
-        .frame(width: 600, height: 400)
+        .frame(width: 600, height: 500)
 }

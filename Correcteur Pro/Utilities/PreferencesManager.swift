@@ -65,4 +65,63 @@ class PreferencesManager: ObservableObject {
         preferences[keyPath: keyPath] = value
         save()
     }
+
+    // MARK: - Gestion des Prompts Personnalisés
+
+    /// Ajouter un nouveau prompt personnalisé
+    func addCustomPrompt(_ prompt: CustomPrompt) {
+        preferences.customPrompts.append(prompt)
+        save()
+        print("✅ Prompt ajouté : \(prompt.name)")
+    }
+
+    /// Archiver un prompt (sera supprimé après 30 jours)
+    func archivePrompt(id: UUID) {
+        if let index = preferences.customPrompts.firstIndex(where: { $0.id == id }) {
+            preferences.customPrompts[index].archivedAt = Date()
+            save()
+            print("📦 Prompt archivé : \(preferences.customPrompts[index].name)")
+        }
+    }
+
+    /// Restaurer un prompt archivé
+    func restorePrompt(id: UUID) {
+        if let index = preferences.customPrompts.firstIndex(where: { $0.id == id }) {
+            preferences.customPrompts[index].archivedAt = nil
+            save()
+            print("♻️ Prompt restauré : \(preferences.customPrompts[index].name)")
+        }
+    }
+
+    /// Supprimer définitivement un prompt
+    func deletePromptPermanently(id: UUID) {
+        if let index = preferences.customPrompts.firstIndex(where: { $0.id == id }) {
+            let name = preferences.customPrompts[index].name
+            preferences.customPrompts.remove(at: index)
+            save()
+            print("🗑️ Prompt supprimé définitivement : \(name)")
+        }
+    }
+
+    /// Nettoyer les prompts expirés (archivés depuis plus de 30 jours)
+    func cleanupExpiredPrompts() {
+        let expiredPrompts = preferences.customPrompts.filter { $0.shouldBeDeleted }
+        for prompt in expiredPrompts {
+            print("🗑️ Suppression automatique du prompt expiré : \(prompt.name)")
+        }
+        preferences.customPrompts.removeAll { $0.shouldBeDeleted }
+        if !expiredPrompts.isEmpty {
+            save()
+        }
+    }
+
+    /// Récupérer les prompts actifs (non archivés)
+    var activePrompts: [CustomPrompt] {
+        preferences.customPrompts.filter { !$0.isArchived }
+    }
+
+    /// Récupérer les prompts archivés
+    var archivedPrompts: [CustomPrompt] {
+        preferences.customPrompts.filter { $0.isArchived }
+    }
 }

@@ -83,6 +83,27 @@ struct CustomPrompt: Codable, Identifiable, Equatable {
     var icon: String
     var content: String
     var createdAt: Date = Date()
+    var archivedAt: Date? = nil // Date d'archivage (nil = actif)
+
+    /// Indique si le prompt est archivé
+    var isArchived: Bool {
+        archivedAt != nil
+    }
+
+    /// Nombre de jours restants avant suppression définitive (30 jours après archivage)
+    var daysUntilDeletion: Int? {
+        guard let archivedAt = archivedAt else { return nil }
+        let deletionDate = Calendar.current.date(byAdding: .day, value: 30, to: archivedAt) ?? archivedAt
+        let days = Calendar.current.dateComponents([.day], from: Date(), to: deletionDate).day ?? 0
+        return max(0, days)
+    }
+
+    /// Indique si le prompt doit être supprimé définitivement (archivé depuis plus de 30 jours)
+    var shouldBeDeleted: Bool {
+        guard let archivedAt = archivedAt else { return false }
+        let daysSinceArchive = Calendar.current.dateComponents([.day], from: archivedAt, to: Date()).day ?? 0
+        return daysSinceArchive >= 30
+    }
 }
 
 // MARK: - Enums

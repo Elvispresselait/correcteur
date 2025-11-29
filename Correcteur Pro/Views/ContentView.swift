@@ -15,7 +15,8 @@ struct ContentView: View {
     @State private var isPromptEditorOpen: Bool = false
 
     /// Seuil de largeur pour passer en mode colonne (éditeur à droite)
-    private let columnModeThreshold: CGFloat = 800
+    /// 1000px permet d'être en mode compact sur la moitié d'un écran 1920x1080 (960px)
+    private let columnModeThreshold: CGFloat = 1000
 
     private let backgroundGradient = LinearGradient(
         colors: [

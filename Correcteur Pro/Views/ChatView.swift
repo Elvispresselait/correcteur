@@ -250,9 +250,9 @@ struct PromptSelectorRow: View {
     let isCompact: Bool // Mode compact : affiche seulement les icônes
     @State private var showNewPromptSheet = false
 
-    /// Prompts personnalisés de l'utilisateur
+    /// Prompts personnalisés actifs (non archivés)
     private var customPrompts: [CustomPrompt] {
-        PreferencesManager.shared.preferences.customPrompts
+        PreferencesManager.shared.activePrompts
     }
 
     /// Ordre des prompts de base : non-sélectionnés à gauche, sélectionné à droite
@@ -313,19 +313,30 @@ struct PromptSelectorRow: View {
                     prompt: custom,
                     isSelected: viewModel.promptType == .personnalise && viewModel.selectedCustomPromptID == custom.id,
                     isCompact: isCompact,
-                    isEditorOpen: isPromptEditorOpen && viewModel.selectedCustomPromptID == custom.id
-                ) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        if viewModel.promptType == .personnalise && viewModel.selectedCustomPromptID == custom.id {
-                            isPromptEditorOpen.toggle()
-                        } else {
-                            viewModel.promptType = .personnalise
-                            viewModel.selectedCustomPromptID = custom.id
-                            viewModel.temporaryPrompt = nil
-                            isPromptEditorOpen = true
+                    isEditorOpen: isPromptEditorOpen && viewModel.selectedCustomPromptID == custom.id,
+                    action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            if viewModel.promptType == .personnalise && viewModel.selectedCustomPromptID == custom.id {
+                                isPromptEditorOpen.toggle()
+                            } else {
+                                viewModel.promptType = .personnalise
+                                viewModel.selectedCustomPromptID = custom.id
+                                viewModel.temporaryPrompt = nil
+                                isPromptEditorOpen = true
+                            }
+                        }
+                    },
+                    onArchive: {
+                        // Archiver le prompt
+                        PreferencesManager.shared.archivePrompt(id: custom.id)
+                        // Si c'est le prompt sélectionné, désélectionner
+                        if viewModel.selectedCustomPromptID == custom.id {
+                            viewModel.selectedCustomPromptID = nil
+                            viewModel.promptType = .correcteur
+                            isPromptEditorOpen = false
                         }
                     }
-                }
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: isCompact ? .center : .trailing)
@@ -345,6 +356,9 @@ struct CustomPromptRowButton: View {
     let isCompact: Bool
     let isEditorOpen: Bool
     let action: () -> Void
+    var onArchive: (() -> Void)? = nil
+
+    @State private var showArchiveConfirmation = false
 
     var body: some View {
         Button(action: action) {
@@ -378,6 +392,21 @@ struct CustomPromptRowButton: View {
         .buttonStyle(.plain)
         .foregroundColor(isSelected ? .white : .white.opacity(0.7))
         .help(prompt.name)
+        .contextMenu {
+            Button(role: .destructive) {
+                showArchiveConfirmation = true
+            } label: {
+                Label("Archiver", systemImage: "archivebox")
+            }
+        }
+        .alert("Archiver ce prompt ?", isPresented: $showArchiveConfirmation) {
+            Button("Annuler", role: .cancel) {}
+            Button("Archiver", role: .destructive) {
+                onArchive?()
+            }
+        } message: {
+            Text("Le prompt \"\(prompt.name)\" sera archivé pendant 30 jours. Vous pourrez le restaurer depuis les Préférences.")
+        }
     }
 }
 
