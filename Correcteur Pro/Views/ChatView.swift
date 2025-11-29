@@ -359,45 +359,62 @@ struct CustomPromptRowButton: View {
     var onArchive: (() -> Void)? = nil
 
     @State private var showArchiveConfirmation = false
+    @State private var isHovered: Bool = false
+
+    private var backgroundColor: Color {
+        if isSelected {
+            return Color.purple.opacity(isEditorOpen ? 0.4 : 0.3)
+        }
+        return (isHovered && isCompact) ? Color.white.opacity(0.12) : Color.white.opacity(0.05)
+    }
+
+    private var borderColor: Color {
+        isSelected ? Color.purple.opacity(isEditorOpen ? 0.7 : 0.5) : Color.clear
+    }
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Text(prompt.icon)
-                    .font(.system(size: isCompact ? 16 : 14))
+        VStack(spacing: 2) {
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Text(prompt.icon)
+                        .font(.system(size: isCompact ? 16 : 14))
 
-                if !isCompact {
-                    Text(prompt.name)
-                        .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
-                        .lineLimit(1)
+                    if !isCompact {
+                        Text(prompt.name)
+                            .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                            .lineLimit(1)
+                    }
+
+                    if isSelected {
+                        Image(systemName: isEditorOpen ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
                 }
-
-                if isSelected {
-                    Image(systemName: isEditorOpen ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
+                .padding(.horizontal, isCompact ? 8 : 12)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 8).fill(backgroundColor))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(borderColor, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+            .contextMenu {
+                Button(role: .destructive) {
+                    showArchiveConfirmation = true
+                } label: {
+                    Label("Archiver", systemImage: "archivebox")
                 }
             }
-            .padding(.horizontal, isCompact ? 8 : 12)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? Color.purple.opacity(isEditorOpen ? 0.4 : 0.3) : Color.white.opacity(0.05))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? Color.purple.opacity(isEditorOpen ? 0.7 : 0.5) : Color.clear, lineWidth: 1)
-            )
+
+            if isCompact && isHovered {
+                Text(prompt.name)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.7))
+                    .lineLimit(1)
+            }
         }
-        .buttonStyle(.plain)
-        .foregroundColor(isSelected ? .white : .white.opacity(0.7))
-        .help(prompt.name)
-        .contextMenu {
-            Button(role: .destructive) {
-                showArchiveConfirmation = true
-            } label: {
-                Label("Archiver", systemImage: "archivebox")
-            }
+        .onHover { hovering in
+            isHovered = hovering
         }
         .alert("Archiver ce prompt ?", isPresented: $showArchiveConfirmation) {
             Button("Annuler", role: .cancel) {}
@@ -507,45 +524,63 @@ struct PromptRowButton: View {
     var isTemporary: Bool = false
     let action: () -> Void
 
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Text(promptType.icon)
-                    .font(.system(size: isCompact ? 16 : 14))
+    @State private var isHovered: Bool = false
 
-                if !isCompact {
-                    Text(promptType.shortName)
-                        .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
-                }
-
-                // Indicateur de mode temporaire (point rouge)
-                if isSelected && isTemporary {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 6, height: 6)
-                }
-
-                // Chevron pour indiquer l'état de l'éditeur (seulement si sélectionné)
-                if isSelected {
-                    Image(systemName: isEditorOpen ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
-                }
-            }
-            .padding(.horizontal, isCompact ? 8 : 12)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? (isTemporary ? Color.orange.opacity(0.4) : Color.blue.opacity(isEditorOpen ? 0.4 : 0.3)) : Color.white.opacity(0.05))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? (isTemporary ? Color.orange.opacity(0.7) : Color.blue.opacity(isEditorOpen ? 0.7 : 0.5)) : Color.clear, lineWidth: 1)
-            )
+    private var backgroundColor: Color {
+        if isSelected {
+            return isTemporary ? Color.orange.opacity(0.4) : Color.blue.opacity(isEditorOpen ? 0.4 : 0.3)
         }
-        .buttonStyle(.plain)
-        .foregroundColor(isSelected ? .white : .white.opacity(0.7))
-        .help(isSelected ? (isTemporary ? "Mode temporaire - Cliquer pour modifier" : "Cliquer pour modifier le prompt") : promptType.rawValue)
+        return (isHovered && isCompact) ? Color.white.opacity(0.12) : Color.white.opacity(0.05)
+    }
+
+    private var borderColor: Color {
+        if isSelected {
+            return isTemporary ? Color.orange.opacity(0.7) : Color.blue.opacity(isEditorOpen ? 0.7 : 0.5)
+        }
+        return Color.clear
+    }
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Text(promptType.icon)
+                        .font(.system(size: isCompact ? 16 : 14))
+
+                    if !isCompact {
+                        Text(promptType.shortName)
+                            .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                    }
+
+                    if isSelected && isTemporary {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 6, height: 6)
+                    }
+
+                    if isSelected {
+                        Image(systemName: isEditorOpen ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                }
+                .padding(.horizontal, isCompact ? 8 : 12)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 8).fill(backgroundColor))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(borderColor, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+
+            if isCompact && isHovered {
+                Text(promptType.shortName)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+        }
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }
 
