@@ -145,53 +145,99 @@ struct HeaderView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Ligne 1 : Sidebar + Titre + (Prompts si pas compact)
-            HStack(spacing: 12) {
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isSidebarVisible.toggle()
-                    }
-                }) {
-                    Image(systemName: "sidebar.left")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white.opacity(0.85))
-                }
-                .buttonStyle(.plain)
-                .help("Afficher/masquer la barre latérale")
-
-                HStack(spacing: 8) {
-                    Text(title)
-                        .font(.system(size: isCompactMode ? 14 : 15, weight: .semibold))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-
-                    // Bouton de renommage juste à côté du titre
-                    if canRename {
-                        Button(action: onRename) {
-                            Image(systemName: "pencil")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.white.opacity(0.6))
+            if isCompactMode {
+                // Mode compact : titre centré
+                ZStack {
+                    // Bouton sidebar à gauche
+                    HStack {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isSidebarVisible.toggle()
+                            }
+                        }) {
+                            Image(systemName: "sidebar.left")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white.opacity(0.85))
                         }
                         .buttonStyle(.plain)
-                        .help("Renommer la conversation")
+                        .help("Afficher/masquer la barre latérale")
+
+                        Spacer()
+                    }
+
+                    // Titre centré avec icônes équilibrées
+                    HStack(spacing: 8) {
+                        // Icône invisible à gauche pour équilibrer le centrage
+                        if canRename {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.clear) // Invisible
+                        }
+
+                        Text(title)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+
+                        // Icône visible à droite
+                        if canRename {
+                            Button(action: onRename) {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Renommer la conversation")
+                        }
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 6)
 
-                Spacer()
-
-                // Boutons de sélection de prompt (seulement si pas en mode compact)
-                if !isCompactMode {
-                    PromptSelectorRow(viewModel: viewModel, isPromptEditorOpen: $isPromptEditorOpen, isCompact: false)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, isCompactMode ? 6 : 8)
-
-            // Ligne 2 : Prompts (seulement en mode compact)
-            if isCompactMode {
+                // Ligne 2 : Prompts centrés
                 PromptSelectorRow(viewModel: viewModel, isPromptEditorOpen: $isPromptEditorOpen, isCompact: true)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 8)
+            } else {
+                // Mode normal : layout horizontal classique
+                HStack(spacing: 12) {
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isSidebarVisible.toggle()
+                        }
+                    }) {
+                        Image(systemName: "sidebar.left")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.white.opacity(0.85))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Afficher/masquer la barre latérale")
+
+                    HStack(spacing: 8) {
+                        Text(title)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+
+                        if canRename {
+                            Button(action: onRename) {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Renommer la conversation")
+                        }
+                    }
+
+                    Spacer()
+
+                    PromptSelectorRow(viewModel: viewModel, isPromptEditorOpen: $isPromptEditorOpen, isCompact: false)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
             }
         }
     }
