@@ -40,11 +40,7 @@ struct ChatView: View {
                 onRename: presentRenameDialog,
                 viewModel: viewModel,
                 isPromptEditorOpen: $isPromptEditorOpen,
-                onTestFrontend: {
-                    Task {
-                        await FrontendTester.testFrontendFlow()
-                    }
-                }
+                isCompactMode: !isColumnMode
             )
 
             // Éditeur de prompt inline (mode compact uniquement)
@@ -143,49 +139,61 @@ struct HeaderView: View {
     let onRename: () -> Void
     @ObservedObject var viewModel: ChatViewModel
     @Binding var isPromptEditorOpen: Bool
+    let isCompactMode: Bool // Mode compact : prompts sur deuxième ligne
     var onTestFrontend: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isSidebarVisible.toggle()
-                }
-            }) {
-                Image(systemName: "sidebar.left")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white.opacity(0.85))
-            }
-            .buttonStyle(.plain)
-            .help("Afficher/masquer la barre latérale")
-
-            HStack(spacing: 8) {
-                Text(title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-
-                // Bouton de renommage juste à côté du titre
-                if canRename {
-                    Button(action: onRename) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.white.opacity(0.6))
+        VStack(spacing: 0) {
+            // Ligne 1 : Sidebar + Titre + (Prompts si pas compact)
+            HStack(spacing: 12) {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isSidebarVisible.toggle()
                     }
-                    .buttonStyle(.plain)
-                    .help("Renommer la conversation")
+                }) {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.white.opacity(0.85))
+                }
+                .buttonStyle(.plain)
+                .help("Afficher/masquer la barre latérale")
+
+                HStack(spacing: 8) {
+                    Text(title)
+                        .font(.system(size: isCompactMode ? 14 : 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+
+                    // Bouton de renommage juste à côté du titre
+                    if canRename {
+                        Button(action: onRename) {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.white.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Renommer la conversation")
+                    }
+                }
+
+                Spacer()
+
+                // Boutons de sélection de prompt (seulement si pas en mode compact)
+                if !isCompactMode {
+                    PromptSelectorRow(viewModel: viewModel, isPromptEditorOpen: $isPromptEditorOpen, isCompact: false)
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, isCompactMode ? 6 : 8)
 
-            Spacer()
-
-            // Boutons de sélection de prompt en ligne (sélectionné à droite)
-            PromptSelectorRow(viewModel: viewModel, isPromptEditorOpen: $isPromptEditorOpen)
+            // Ligne 2 : Prompts (seulement en mode compact)
+            if isCompactMode {
+                PromptSelectorRow(viewModel: viewModel, isPromptEditorOpen: $isPromptEditorOpen, isCompact: true)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
-        .frame(height: 48)
     }
 }
 
@@ -193,6 +201,7 @@ struct HeaderView: View {
 struct PromptSelectorRow: View {
     @ObservedObject var viewModel: ChatViewModel
     @Binding var isPromptEditorOpen: Bool
+    let isCompact: Bool // Mode compact : affiche seulement les icônes
     @State private var showNewPromptSheet = false
 
     /// Prompts personnalisés de l'utilisateur
@@ -213,71 +222,67 @@ struct PromptSelectorRow: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            let isCompact = geometry.size.width < 300
+        HStack(spacing: 6) {
+            // Bouton "+" pour créer un nouveau prompt
+            Button(action: { showNewPromptSheet = true }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white.opacity(0.6))
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.white.opacity(0.05))
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("Créer un nouveau prompt")
 
-            HStack(spacing: 6) {
-                // Bouton "+" pour créer un nouveau prompt
-                Button(action: { showNewPromptSheet = true }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
-                        .padding(8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.white.opacity(0.05))
-                        )
-                }
-                .buttonStyle(.plain)
-                .help("Créer un nouveau prompt")
-
-                // Prompts de base (Correcteur, Assistant, Traducteur)
-                ForEach(sortedBasePrompts) { promptType in
-                    PromptRowButton(
-                        promptType: promptType,
-                        isSelected: viewModel.promptType == promptType,
-                        isCompact: isCompact,
-                        isEditorOpen: isPromptEditorOpen && viewModel.promptType == promptType,
-                        isTemporary: viewModel.isInTemporaryMode && viewModel.promptType == promptType
-                    ) {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            if viewModel.promptType == promptType {
-                                // Déjà sélectionné → toggle l'éditeur
-                                isPromptEditorOpen.toggle()
-                            } else {
-                                // Nouveau prompt → sélectionner et ouvrir l'éditeur
-                                viewModel.promptType = promptType
-                                viewModel.selectedCustomPromptID = nil
-                                viewModel.temporaryPrompt = nil
-                                isPromptEditorOpen = true
-                            }
-                        }
-                    }
-                }
-
-                // Prompts personnalisés créés par l'utilisateur
-                ForEach(customPrompts) { custom in
-                    CustomPromptRowButton(
-                        prompt: custom,
-                        isSelected: viewModel.promptType == .personnalise && viewModel.selectedCustomPromptID == custom.id,
-                        isCompact: isCompact,
-                        isEditorOpen: isPromptEditorOpen && viewModel.selectedCustomPromptID == custom.id
-                    ) {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            if viewModel.promptType == .personnalise && viewModel.selectedCustomPromptID == custom.id {
-                                isPromptEditorOpen.toggle()
-                            } else {
-                                viewModel.promptType = .personnalise
-                                viewModel.selectedCustomPromptID = custom.id
-                                viewModel.temporaryPrompt = nil
-                                isPromptEditorOpen = true
-                            }
+            // Prompts de base (Correcteur, Assistant, Traducteur)
+            ForEach(sortedBasePrompts) { promptType in
+                PromptRowButton(
+                    promptType: promptType,
+                    isSelected: viewModel.promptType == promptType,
+                    isCompact: isCompact,
+                    isEditorOpen: isPromptEditorOpen && viewModel.promptType == promptType,
+                    isTemporary: viewModel.isInTemporaryMode && viewModel.promptType == promptType
+                ) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if viewModel.promptType == promptType {
+                            // Déjà sélectionné → toggle l'éditeur
+                            isPromptEditorOpen.toggle()
+                        } else {
+                            // Nouveau prompt → sélectionner et ouvrir l'éditeur
+                            viewModel.promptType = promptType
+                            viewModel.selectedCustomPromptID = nil
+                            viewModel.temporaryPrompt = nil
+                            isPromptEditorOpen = true
                         }
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
+
+            // Prompts personnalisés créés par l'utilisateur
+            ForEach(customPrompts) { custom in
+                CustomPromptRowButton(
+                    prompt: custom,
+                    isSelected: viewModel.promptType == .personnalise && viewModel.selectedCustomPromptID == custom.id,
+                    isCompact: isCompact,
+                    isEditorOpen: isPromptEditorOpen && viewModel.selectedCustomPromptID == custom.id
+                ) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if viewModel.promptType == .personnalise && viewModel.selectedCustomPromptID == custom.id {
+                            isPromptEditorOpen.toggle()
+                        } else {
+                            viewModel.promptType = .personnalise
+                            viewModel.selectedCustomPromptID = custom.id
+                            viewModel.temporaryPrompt = nil
+                            isPromptEditorOpen = true
+                        }
+                    }
+                }
+            }
         }
+        .frame(maxWidth: .infinity, alignment: isCompact ? .center : .trailing)
         .frame(height: 32)
         .sheet(isPresented: $showNewPromptSheet) {
             NewPromptSheet(viewModel: viewModel, isOpen: $showNewPromptSheet, onCreated: {
