@@ -17,6 +17,11 @@ struct CorrecteurProApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .defaultSize(width: 600, height: 700)
+
+        // Fenêtre de préférences (Cmd+,)
+        Settings {
+            PreferencesWindow()
+        }
     }
 }
 

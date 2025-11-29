@@ -14,8 +14,28 @@ enum SystemPromptType: String, CaseIterable, Identifiable {
     case assistant = "Assistant général"
     case traducteur = "Traducteur"
     case personnalise = "Personnalisé"
-    
+
     var id: String { rawValue }
+
+    /// Icône par défaut pour chaque type de prompt
+    var icon: String {
+        switch self {
+        case .correcteur: return "✏️"
+        case .assistant: return "🤖"
+        case .traducteur: return "🌍"
+        case .personnalise: return "⚙️"
+        }
+    }
+
+    /// Nom court pour affichage compact
+    var shortName: String {
+        switch self {
+        case .correcteur: return "Correcteur"
+        case .assistant: return "Assistant"
+        case .traducteur: return "Traducteur"
+        case .personnalise: return "Perso"
+        }
+    }
 }
 
 @MainActor
@@ -29,16 +49,87 @@ final class ChatViewModel: ObservableObject {
     // Service de persistance
     private let storage = ConversationStorage.shared
 
+    /// Prompt temporaire en cours d'édition (non sauvegardé)
+    @Published var temporaryPrompt: String? = nil
+
+    /// ID du prompt personnalisé sélectionné (si applicable)
+    @Published var selectedCustomPromptID: UUID? = nil
+
     var currentSystemPrompt: String {
+        // Si on a un prompt temporaire, l'utiliser
+        if let temp = temporaryPrompt {
+            return temp
+        }
+
+        // Sinon, utiliser le prompt sauvegardé
+        let prefs = PreferencesManager.shared.preferences
         switch promptType {
         case .correcteur:
-            return ChatViewModel.correcteurPrompt
+            return prefs.promptCorrecteur
         case .assistant:
-            return ChatViewModel.assistantPrompt
+            return prefs.promptAssistant
         case .traducteur:
-            return ChatViewModel.traducteurPrompt
+            return prefs.promptTraducteur
         case .personnalise:
-            return customPrompt.isEmpty ? ChatViewModel.correcteurPrompt : customPrompt
+            // Si un prompt personnalisé est sélectionné
+            if let customID = selectedCustomPromptID,
+               let custom = prefs.customPrompts.first(where: { $0.id == customID }) {
+                return custom.content
+            }
+            return customPrompt.isEmpty ? prefs.promptCorrecteur : customPrompt
+        }
+    }
+
+    /// Vérifie si on est en mode temporaire (modifications non sauvegardées)
+    var isInTemporaryMode: Bool {
+        temporaryPrompt != nil
+    }
+
+    /// Sauvegarde le prompt temporaire
+    func saveTemporaryPrompt() {
+        guard let temp = temporaryPrompt else { return }
+
+        switch promptType {
+        case .correcteur:
+            PreferencesManager.shared.preferences.promptCorrecteur = temp
+        case .assistant:
+            PreferencesManager.shared.preferences.promptAssistant = temp
+        case .traducteur:
+            PreferencesManager.shared.preferences.promptTraducteur = temp
+        case .personnalise:
+            if let customID = selectedCustomPromptID,
+               let index = PreferencesManager.shared.preferences.customPrompts.firstIndex(where: { $0.id == customID }) {
+                PreferencesManager.shared.preferences.customPrompts[index].content = temp
+            } else {
+                customPrompt = temp
+            }
+        }
+
+        PreferencesManager.shared.save()
+        temporaryPrompt = nil
+    }
+
+    /// Annule les modifications temporaires
+    func discardTemporaryPrompt() {
+        temporaryPrompt = nil
+    }
+
+    /// Crée un nouveau prompt personnalisé
+    func createCustomPrompt(name: String, icon: String, content: String) {
+        let newPrompt = CustomPrompt(name: name, icon: icon, content: content)
+        PreferencesManager.shared.preferences.customPrompts.append(newPrompt)
+        PreferencesManager.shared.save()
+        selectedCustomPromptID = newPrompt.id
+        promptType = .personnalise
+    }
+
+    /// Supprime un prompt personnalisé
+    func deleteCustomPrompt(id: UUID) {
+        PreferencesManager.shared.preferences.customPrompts.removeAll { $0.id == id }
+        PreferencesManager.shared.save()
+        if selectedCustomPromptID == id {
+            selectedCustomPromptID = nil
+            promptType = .correcteur
         }
     }
 
@@ -374,24 +465,44 @@ final class ChatViewModel: ObservableObject {
     }
 }
 
-// MARK: - Prompts système
+// MARK: - Prompts système (valeurs par défaut / fallback)
 
 extension ChatViewModel {
-    static let correcteurPrompt = """
-Je veux que tu ne regardes que la partie surlignée.
-Tu me la re-rediges complètement en respectant les retours à la ligne.
+    /// Récupère le prompt sauvegardé pour un type donné
+    static func getSavedPrompt(for type: SystemPromptType) -> String {
+        let prefs = PreferencesManager.shared.preferences
+        switch type {
+        case .correcteur:
+            return prefs.promptCorrecteur
+        case .assistant:
+            return prefs.promptAssistant
+        case .traducteur:
+            return prefs.promptTraducteur
+        case .personnalise:
+            return ""
+        }
+    }
 
-Ensuite pour chaque faute, tu me rayes le mot entier où il y a la faute, ou les mots entiers où il y a les fautes.
-Tu rajoutes un espace devant avec et tu mets en gras et soulignés les mots que tu rajoutes pour corriger.
+    /// Sauvegarde un prompt pour un type donné
+    static func savePrompt(_ content: String, for type: SystemPromptType) {
+        switch type {
+        case .correcteur:
+            PreferencesManager.shared.preferences.promptCorrecteur = content
+        case .assistant:
+            PreferencesManager.shared.preferences.promptAssistant = content
+        case .traducteur:
+            PreferencesManager.shared.preferences.promptTraducteur = content
+        case .personnalise:
+            break // Les prompts personnalisés sont gérés autrement
+        }
+        PreferencesManager.shared.save()
+    }
 
-Ensuite, devant chaque paragraphe que tu as modifié, je veux que tu rajoutes une croix rouge (❌).
-Et pour les autres paragraphes qui restent, je veux que tu rajoutes une croix verte (✅) devant chaque paragraphe.
-"""
-    
+    // Constantes pour rétrocompatibilité et valeurs par défaut
     static let assistantPrompt = """
 Tu es un assistant IA utile, respectueux et honnête. Réponds toujours de manière claire et concise.
 """
-    
+
     static let traducteurPrompt = """
 Tu es un traducteur professionnel. Traduis le texte fourni de manière précise et naturelle, en conservant le style et le ton de l'original.
 """

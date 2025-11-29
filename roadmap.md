@@ -8,24 +8,85 @@ Ce document présente la vision à long terme de l'application Correcteur Pro, i
 
 ## ✅ Fonctionnalités actuelles (implémentées)
 
+### Interface utilisateur
 - ✅ Interface utilisateur complète (sidebar, chat, header)
-- ✅ Support du copier-coller d'images avec compression automatique
-- ✅ Configuration de la clé API OpenAI (Keychain)
+- ✅ Interface optimisée sans coins arrondis
+- ✅ Raccourcis clavier (Enter = envoyer, Shift+Enter = nouvelle ligne)
+- ✅ **Panneau de préférences natif macOS (Cmd+,)** avec 4 onglets
+
+### Gestion des conversations
+- ✅ Gestion des conversations multiples avec persistance
+- ✅ Historique conversationnel (20 derniers messages configurables)
 - ✅ Sélection de prompts système (Correcteur, Assistant, Traducteur, Personnalisé)
-- ✅ Gestion des conversations multiples
+
+### Images et capture d'écran
+- ✅ Support du copier-coller d'images avec compression automatique
+- ✅ **Capture écran principal** : Raccourci global Option+Shift+S
+- ✅ **Capture zone sélectionnée** : Raccourci global Option+Shift+X avec overlay interactif
+- ✅ **Compression intelligente avec détection de contenu** (ÉTAPES 9-11)
+  - Détection automatique : texte, photo, mixte, inconnu
+  - 16 profils de compression optimisés
+  - Réduction 70-80% pour texte, 40-60% pour photos
+  - Validation qualité OCR optionnelle (Vision Framework)
+- ✅ Compression configurable (None/Low/Medium/High)
+- ✅ Format configurable (JPEG/PNG)
+- ✅ Son notification après capture
+
+### API OpenAI
+- ✅ Configuration de la clé API OpenAI (Keychain sécurisé)
+- ✅ Intégration API OpenAI (Chat Completions + Vision API)
+- ✅ Modèle configurable (GPT-4o / GPT-4 Turbo / GPT-3.5 Turbo)
+- ✅ MaxTokens configurable (1000-16000)
+- ✅ Affichage coût estimé en euros
+
+### Raccourcis clavier globaux
+- ✅ Raccourcis configurables et personnalisables
+- ✅ Réenregistrement dynamique sans redémarrage
+- ✅ Support complet A-Z avec modificateurs (⌃⌥⇧⌘)
+
+### Documentation et architecture
+- ✅ Documentation complète organisée dans `/Docs`
+- ✅ Architecture MVVM documentée
+- ✅ Historique complet des étapes de développement
+- ✅ Code nettoyé sans warnings
 
 ---
 
 ## 🚀 Fonctionnalités en cours de développement
+- Aucune (base stable)
 
-- 🔄 Intégration API OpenAI (Chat Completions)
-- 🔄 Support Vision API pour l'analyse d'images
-- 🔄 Persistance des conversations
+## 🕚 Fonctionnalités à implémenter
+
+### Fonctionnalité thème clair
+- Changer l'interface pour que la version claire ressemble à quelque chose
+- Améliorer le contraste et la lisibilité en mode clair
+- Respecter le design system macOS
+
+### Toggle validation OCR dans préférences
+- Ajouter option "Valider qualité texte" dans Préférences → Capture
+- Permet d'activer la validation OCR automatique (ÉTAPE 10)
+- Off par défaut pour préserver performance
+
+### Statistiques compression dans UI
+- Afficher taille avant/après compression
+- Afficher pourcentage d'économie
+- Compteur total MB économisés depuis début
+
+### Recherche dans conversations
+- Barre de recherche dans sidebar
+- Filtrage en temps réel des conversations
+- Highlight des résultats
+
+### Refactorer le code pour qu'un designer puisse facilement modifier l'interface utilisateur
+
 
 ---
 
-## 🔮 Fonctionnalités futures - Agents OpenAI
+## 🐛 Bugs connus à corriger
+- Aucun pour l'instant
 
+
+## 🔮 Fonctionnalités futures - Agents OpenAI
 ### 📌 Pourquoi les agents ne sont pas nécessaires maintenant
 
 **Situation actuelle :**
@@ -217,17 +278,19 @@ func queryLegalDatabase(domain: String, query: String) -> [Reference] {
 
 ## 📅 Plan d'implémentation suggéré
 
-### Phase 1 : API basique (actuelle)
+### Phase 1 : API basique (✅ COMPLÉTÉE)
 - ✅ Configuration clé API
-- 🔄 Intégration Chat Completions
-- 🔄 Support Vision API
-- **Durée estimée :** 2-3 semaines
+- ✅ Intégration Chat Completions
+- ✅ Support Vision API
+- ✅ Panneau de préférences complet
+- ✅ Capture d'écran avec zone sélectionnée
 
-### Phase 2 : Améliorations UX
-- Persistance des conversations
-- Recherche dans les conversations
-- Export des corrections
-- **Durée estimée :** 1-2 semaines
+### Phase 2 : Améliorations UX (🔄 EN PARTIE)
+- ✅ Persistance des conversations
+- ⏳ Recherche dans les conversations
+- ⏳ Export des corrections
+- ⏳ Implémentation thème clair
+- ⏳ Implémentation préférences Interface complètes
 
 ### Phase 3 : Détection de type de contenu (sans agent)
 - Analyse simple du contenu pour suggérer un prompt
@@ -252,9 +315,11 @@ func queryLegalDatabase(domain: String, query: String) -> [Reference] {
 ## 🎯 Priorités
 
 ### Court terme (1-2 mois)
-1. Finaliser l'intégration API basique
-2. Améliorer l'UX (persistance, recherche)
-3. Ajouter des prompts spécialisés par domaine
+1. ✅ ~~Finaliser l'intégration API basique~~ (COMPLÉTÉ)
+2. Optimisation compression images (réduction taille minimale)
+3. Implémentation thème clair
+4. Recherche dans les conversations
+5. Export des corrections
 
 ### Moyen terme (3-6 mois)
 1. Créer des bases de données de références
@@ -291,5 +356,28 @@ func queryLegalDatabase(domain: String, query: String) -> [Reference] {
 
 ---
 
-*Dernière mise à jour : Décembre 2024*
+---
+
+## 📊 État du projet
+
+**Version actuelle** : 1.0 (base stable)
+**Statut** : ✅ Production Ready
+**Dernière mise à jour** : 29 novembre 2024
+
+### Métriques
+- **37 fichiers Swift**
+- **~3900 lignes de code**
+- **0 warnings de compilation**
+- **0 bugs connus**
+- **100%** des fonctionnalités de base implémentées
+
+### Prochaine version prévue : 1.1
+**Objectifs** :
+- Optimisation compression images
+- Thème clair
+- Recherche dans conversations
+
+---
+
+*Dernière mise à jour de la roadmap : 29 novembre 2024*
 

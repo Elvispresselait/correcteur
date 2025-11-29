@@ -13,11 +13,12 @@ struct ChatView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Binding var isSidebarVisible: Bool
     @Binding var inputText: String
-    
+
     @State private var isRenamingConversation = false
     @State private var renameDraft = ""
     @State private var pendingImages: [NSImage] = []
     @State private var toast: ToastMessage?
+    @State private var isPromptEditorOpen = false
     
     private let chatGradient = LinearGradient(
         colors: [
@@ -37,12 +38,19 @@ struct ChatView: View {
                 canRename: viewModel.selectedConversation != nil,
                 onRename: presentRenameDialog,
                 viewModel: viewModel,
+                isPromptEditorOpen: $isPromptEditorOpen,
                 onTestFrontend: {
                     Task {
                         await FrontendTester.testFrontendFlow()
                     }
                 }
             )
+
+            // Éditeur de prompt (s'affiche en dessous du header si ouvert)
+            if isPromptEditorOpen {
+                PromptEditorView(viewModel: viewModel, isOpen: $isPromptEditorOpen)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
 
             if let conversation = viewModel.selectedConversation {
                 MessagesScrollView(messages: conversation.messages)
@@ -132,10 +140,9 @@ struct HeaderView: View {
     let canRename: Bool
     let onRename: () -> Void
     @ObservedObject var viewModel: ChatViewModel
+    @Binding var isPromptEditorOpen: Bool
     var onTestFrontend: (() -> Void)? = nil
-    
-    @State private var showCustomPromptSheet = false
-    
+
     var body: some View {
         HStack(spacing: 12) {
             Button(action: {
@@ -149,7 +156,7 @@ struct HeaderView: View {
             }
             .buttonStyle(.plain)
             .help("Afficher/masquer la barre latérale")
-            
+
             HStack(spacing: 8) {
                 Text(title)
                     .font(.system(size: 15, weight: .semibold))
@@ -167,48 +174,486 @@ struct HeaderView: View {
                     .help("Renommer la conversation")
                 }
             }
-            
+
             Spacer()
-            
-            // Picker pour sélectionner le prompt système
-            Menu {
-                ForEach(SystemPromptType.allCases) { promptType in
-                    Button(action: {
-                        viewModel.promptType = promptType
-                        if promptType == .personnalise {
-                            showCustomPromptSheet = true
-                        }
-                    }) {
-                        HStack {
-                            Text(promptType.rawValue)
-                            if viewModel.promptType == promptType {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 13, weight: .medium))
-                    Text(viewModel.promptType.rawValue)
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundColor(.white.opacity(0.85))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.white.opacity(0.08))
-                .cornerRadius(8)
-            }
-            .buttonStyle(.plain)
-            .help("Sélectionner le prompt système")
+
+            // Boutons de sélection de prompt en ligne (sélectionné à droite)
+            PromptSelectorRow(viewModel: viewModel, isPromptEditorOpen: $isPromptEditorOpen)
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, 8)
         .frame(height: 48)
-        .sheet(isPresented: $showCustomPromptSheet) {
-            CustomPromptSheet(viewModel: viewModel)
+    }
+}
+
+/// Ligne de sélection des prompts (responsive)
+struct PromptSelectorRow: View {
+    @ObservedObject var viewModel: ChatViewModel
+    @Binding var isPromptEditorOpen: Bool
+    @State private var showNewPromptSheet = false
+
+    /// Prompts personnalisés de l'utilisateur
+    private var customPrompts: [CustomPrompt] {
+        PreferencesManager.shared.preferences.customPrompts
+    }
+
+    /// Ordre des prompts de base : non-sélectionnés à gauche, sélectionné à droite
+    private var sortedBasePrompts: [SystemPromptType] {
+        // Exclure .personnalise car on gère les prompts custom séparément
+        SystemPromptType.allCases
+            .filter { $0 != .personnalise }
+            .sorted { lhs, rhs in
+                if lhs == viewModel.promptType { return false }
+                if rhs == viewModel.promptType { return true }
+                return lhs.rawValue < rhs.rawValue
+            }
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let isCompact = geometry.size.width < 300
+
+            HStack(spacing: 6) {
+                // Bouton "+" pour créer un nouveau prompt
+                Button(action: { showNewPromptSheet = true }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                        .padding(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.white.opacity(0.05))
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("Créer un nouveau prompt")
+
+                // Prompts de base (Correcteur, Assistant, Traducteur)
+                ForEach(sortedBasePrompts) { promptType in
+                    PromptRowButton(
+                        promptType: promptType,
+                        isSelected: viewModel.promptType == promptType,
+                        isCompact: isCompact,
+                        isEditorOpen: isPromptEditorOpen && viewModel.promptType == promptType,
+                        isTemporary: viewModel.isInTemporaryMode && viewModel.promptType == promptType
+                    ) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            if viewModel.promptType == promptType {
+                                // Déjà sélectionné → toggle l'éditeur
+                                isPromptEditorOpen.toggle()
+                            } else {
+                                // Nouveau prompt → sélectionner et ouvrir l'éditeur
+                                viewModel.promptType = promptType
+                                viewModel.selectedCustomPromptID = nil
+                                viewModel.temporaryPrompt = nil
+                                isPromptEditorOpen = true
+                            }
+                        }
+                    }
+                }
+
+                // Prompts personnalisés créés par l'utilisateur
+                ForEach(customPrompts) { custom in
+                    CustomPromptRowButton(
+                        prompt: custom,
+                        isSelected: viewModel.promptType == .personnalise && viewModel.selectedCustomPromptID == custom.id,
+                        isCompact: isCompact,
+                        isEditorOpen: isPromptEditorOpen && viewModel.selectedCustomPromptID == custom.id
+                    ) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            if viewModel.promptType == .personnalise && viewModel.selectedCustomPromptID == custom.id {
+                                isPromptEditorOpen.toggle()
+                            } else {
+                                viewModel.promptType = .personnalise
+                                viewModel.selectedCustomPromptID = custom.id
+                                viewModel.temporaryPrompt = nil
+                                isPromptEditorOpen = true
+                            }
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .frame(height: 32)
+        .sheet(isPresented: $showNewPromptSheet) {
+            NewPromptSheet(viewModel: viewModel, isOpen: $showNewPromptSheet, onCreated: {
+                isPromptEditorOpen = true
+            })
+        }
+    }
+}
+
+/// Bouton pour un prompt personnalisé
+struct CustomPromptRowButton: View {
+    let prompt: CustomPrompt
+    let isSelected: Bool
+    let isCompact: Bool
+    let isEditorOpen: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(prompt.icon)
+                    .font(.system(size: isCompact ? 16 : 14))
+
+                if !isCompact {
+                    Text(prompt.name)
+                        .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                        .lineLimit(1)
+                }
+
+                if isSelected {
+                    Image(systemName: isEditorOpen ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+            .padding(.horizontal, isCompact ? 8 : 12)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color.purple.opacity(isEditorOpen ? 0.4 : 0.3) : Color.white.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.purple.opacity(isEditorOpen ? 0.7 : 0.5) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+        .help(prompt.name)
+    }
+}
+
+/// Sheet pour créer un nouveau prompt
+struct NewPromptSheet: View {
+    @ObservedObject var viewModel: ChatViewModel
+    @Binding var isOpen: Bool
+    var onCreated: () -> Void
+
+    @State private var name: String = ""
+    @State private var icon: String = "📝"
+    @State private var content: String = ""
+
+    private let availableIcons = ["📝", "✨", "🎯", "💡", "🔧", "📊", "🎨", "📚", "🔬", "💬"]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Nouveau prompt")
+                    .font(.system(size: 17, weight: .semibold))
+
+                Spacer()
+
+                Button("Annuler") {
+                    isOpen = false
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+            }
+            .padding(20)
+            .background(Color(NSColor.controlBackgroundColor))
+
+            Divider()
+
+            // Contenu
+            VStack(alignment: .leading, spacing: 16) {
+                // Nom et icône
+                HStack(spacing: 12) {
+                    // Sélecteur d'icône
+                    Menu {
+                        ForEach(availableIcons, id: \.self) { emoji in
+                            Button(emoji) {
+                                icon = emoji
+                            }
+                        }
+                    } label: {
+                        Text(icon)
+                            .font(.system(size: 24))
+                            .frame(width: 44, height: 44)
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(8)
+                    }
+
+                    // Nom
+                    TextField("Nom du prompt", text: $name)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                // Contenu
+                Text("Instructions")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                TextEditor(text: $content)
+                    .font(.system(size: 13, design: .monospaced))
+                    .frame(minHeight: 150)
+                    .background(Color(NSColor.textBackgroundColor))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                    )
+
+                // Bouton créer
+                HStack {
+                    Spacer()
+                    Button("Créer") {
+                        viewModel.createCustomPrompt(name: name, icon: icon, content: content)
+                        isOpen = false
+                        onCreated()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .padding(20)
+        }
+        .frame(width: 500, height: 400)
+    }
+}
+
+struct PromptRowButton: View {
+    let promptType: SystemPromptType
+    let isSelected: Bool
+    let isCompact: Bool
+    let isEditorOpen: Bool
+    var isTemporary: Bool = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(promptType.icon)
+                    .font(.system(size: isCompact ? 16 : 14))
+
+                if !isCompact {
+                    Text(promptType.shortName)
+                        .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                }
+
+                // Indicateur de mode temporaire (point rouge)
+                if isSelected && isTemporary {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 6, height: 6)
+                }
+
+                // Chevron pour indiquer l'état de l'éditeur (seulement si sélectionné)
+                if isSelected {
+                    Image(systemName: isEditorOpen ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+            .padding(.horizontal, isCompact ? 8 : 12)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? (isTemporary ? Color.orange.opacity(0.4) : Color.blue.opacity(isEditorOpen ? 0.4 : 0.3)) : Color.white.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? (isTemporary ? Color.orange.opacity(0.7) : Color.blue.opacity(isEditorOpen ? 0.7 : 0.5)) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+        .help(isSelected ? (isTemporary ? "Mode temporaire - Cliquer pour modifier" : "Cliquer pour modifier le prompt") : promptType.rawValue)
+    }
+}
+
+/// Éditeur de prompt inline (s'affiche sous le header)
+struct PromptEditorView: View {
+    @ObservedObject var viewModel: ChatViewModel
+    @Binding var isOpen: Bool
+    @State private var editedPrompt: String = ""
+    @State private var originalPrompt: String = ""
+    @FocusState private var isFocused: Bool
+
+    /// Récupère le prompt sauvegardé selon le type sélectionné
+    private var savedPrompt: String {
+        ChatViewModel.getSavedPrompt(for: viewModel.promptType)
+    }
+
+    /// Vérifie si le prompt a été modifié (mode temporaire)
+    private var isModified: Bool {
+        editedPrompt != originalPrompt
+    }
+
+    /// Calcule la hauteur dynamique selon le contenu
+    private var dynamicHeight: CGFloat {
+        let lineCount = max(3, editedPrompt.components(separatedBy: "\n").count)
+        let estimatedHeight = CGFloat(lineCount) * 20 + 40 // 20pt par ligne + padding
+        return min(max(80, estimatedHeight), 300) // Min 80, Max 300
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header de l'éditeur
+            HStack {
+                HStack(spacing: 8) {
+                    Text(viewModel.promptType.icon)
+                        .font(.system(size: 14))
+                    Text("Modifier le prompt : \(viewModel.promptType.shortName)")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.white)
+
+                    // Indicateur de modification (point rouge)
+                    if isModified {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                            .help("Modifications non sauvegardées")
+                    }
+                }
+
+                Spacer()
+
+                // Bouton fermer
+                Button(action: {
+                    handleClose()
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                        .padding(6)
+                        .background(Circle().fill(Color.white.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+                .help("Fermer l'éditeur")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(isModified ? Color.red.opacity(0.15) : Color.black.opacity(0.3))
+
+            // Zone d'édition
+            TextEditor(text: $editedPrompt)
+                .font(.system(size: 13, design: .monospaced))
+                .scrollContentBackground(.hidden)
+                .background(Color.white.opacity(0.05))
+                .foregroundColor(.white)
+                .focused($isFocused)
+                .frame(minHeight: 60, maxHeight: dynamicHeight)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+
+            // Footer avec actions
+            HStack(spacing: 12) {
+                Text("\(editedPrompt.count) caractères")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.5))
+
+                Spacer()
+
+                if isModified {
+                    // Boutons d'action quand modifié
+                    Button(action: discardChanges) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.uturn.backward")
+                                .font(.system(size: 10))
+                            Text("Annuler")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Annuler les modifications")
+
+                    Button(action: saveChanges) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .bold))
+                            Text("Sauvegarder")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.green.opacity(0.7))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Sauvegarder les modifications")
+                } else {
+                    // Bouton pour créer une branche (nouveau prompt basé sur celui-ci)
+                    Button(action: createBranch) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.triangle.branch")
+                                .font(.system(size: 10))
+                            Text("Dupliquer")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Créer un nouveau prompt basé sur celui-ci")
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(isModified ? Color.red.opacity(0.1) : Color.clear)
+        }
+        .background(
+            Rectangle()
+                .fill(Color(hex: "0A1628"))
+                .overlay(
+                    Rectangle()
+                        .stroke(isModified ? Color.red.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1)
+                )
+        )
+        .onAppear {
+            editedPrompt = savedPrompt
+            originalPrompt = savedPrompt
+            isFocused = true
+        }
+        .onChange(of: viewModel.promptType) { _, _ in
+            // Recharger quand le type change
+            editedPrompt = savedPrompt
+            originalPrompt = savedPrompt
+        }
+    }
+
+    /// Sauvegarde les modifications
+    private func saveChanges() {
+        ChatViewModel.savePrompt(editedPrompt, for: viewModel.promptType)
+        originalPrompt = editedPrompt
+    }
+
+    /// Annule les modifications
+    private func discardChanges() {
+        editedPrompt = originalPrompt
+    }
+
+    /// Crée une branche (nouveau prompt personnalisé basé sur celui-ci)
+    private func createBranch() {
+        let name = "\(viewModel.promptType.shortName) (copie)"
+        viewModel.createCustomPrompt(name: name, icon: "📝", content: editedPrompt)
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isOpen = false
+        }
+    }
+
+    /// Gère la fermeture de l'éditeur
+    private func handleClose() {
+        if isModified {
+            // Si modifié, on garde les changements en mode temporaire
+            viewModel.temporaryPrompt = editedPrompt
+        }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isOpen = false
         }
     }
 }
@@ -217,26 +662,26 @@ struct CustomPromptSheet: View {
     @ObservedObject var viewModel: ChatViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var draftPrompt: String
-    
+
     init(viewModel: ChatViewModel) {
         self.viewModel = viewModel
         _draftPrompt = State(initialValue: viewModel.customPrompt)
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
                 Text("Prompt système personnalisé")
                     .font(.system(size: 17, weight: .semibold))
-                
+
                 Spacer()
-                
+
                 Button("Annuler") {
                     dismiss()
                 }
                 .buttonStyle(.plain)
-                
+
                 Button("Enregistrer") {
                     viewModel.customPrompt = draftPrompt
                     dismiss()
@@ -246,9 +691,9 @@ struct CustomPromptSheet: View {
             }
             .padding(20)
             .background(Color(NSColor.controlBackgroundColor))
-            
+
             Divider()
-            
+
             // TextEditor
             TextEditor(text: $draftPrompt)
                 .font(.system(size: 13, design: .monospaced))

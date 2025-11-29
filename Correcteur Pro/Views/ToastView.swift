@@ -57,7 +57,7 @@ struct ToastModifier: ViewModifier {
                     Spacer()
                 }
                 .transition(.move(edge: .top).combined(with: .opacity))
-                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: toast != nil)
+                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: toast)
             }
         }
     }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Correcteur Pro a besoin d'accéder à votre écran pour capturer des images et les analyser avec ChatGPT.</string>
+	<key>NSAccessibilityUsageDescription</key>
+	<string>Correcteur Pro utilise les raccourcis clavier globaux pour déclencher les captures d'écran rapidement.</string>
+</dict>
+</plist>

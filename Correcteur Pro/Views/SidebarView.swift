@@ -138,16 +138,14 @@ struct ConversationRow: View {
     }
 }
 
-#Preview("Sidebar avec conversations") {
+#Preview("Sidebar - Liste de conversations") {
     SidebarPreviewContainer()
     .frame(width: 200, height: 700)
-    .previewDisplayName("Sidebar - Liste de conversations")
 }
 
-#Preview("Sidebar avec sélection") {
+#Preview("Sidebar - Conversation sélectionnée") {
     SidebarSelectedPreviewContainer()
     .frame(width: 200, height: 700)
-    .previewDisplayName("Sidebar - Conversation sélectionnée")
 }
 
 private struct SidebarPreviewContainer: View {
@@ -174,23 +172,21 @@ private struct SidebarSelectedPreviewContainer: View {
     }
 }
 
-#Preview("ConversationRow - Sélectionné") {
+#Preview("ConversationRow - État sélectionné") {
     ConversationRow(
         conversation: Conversation(titre: "Correction de texte sélectionnée"),
         isSelected: true
     )
     .frame(width: 200, height: 50)
     .background(Color(hex: "F7F7F8"))
-    .previewDisplayName("ConversationRow - État sélectionné")
 }
 
-#Preview("ConversationRow - Non sélectionné") {
+#Preview("ConversationRow - État normal") {
     ConversationRow(
         conversation: Conversation(titre: "Traduction document"),
         isSelected: false
     )
     .frame(width: 200, height: 50)
     .background(Color(hex: "F7F7F8"))
-    .previewDisplayName("ConversationRow - État normal")
 }
 

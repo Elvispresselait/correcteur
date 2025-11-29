@@ -92,6 +92,9 @@ final class OpenAIService {
     /// - Returns: La réponse de l'API sous forme de String
     /// - Throws: OpenAIError en cas d'erreur
     static func sendMessage(messages: [Message], systemPrompt: String) async throws -> String {
+        // Log dans la console de debug in-app
+        await DebugLogger.shared.log("🚀 [API] Envoi message avec \(messages.count) messages d'historique", category: "API", level: .info)
+
         print("")
         print("═══════════════════════════════════════════════════════════════")
         print("🔍 [OpenAIService] DÉBUT DE L'ENVOI DU MESSAGE (AVEC HISTORIQUE)")
@@ -108,16 +111,19 @@ final class OpenAIService {
             print("═══════════════════════════════════════════════════════════════")
             print("❌ [OpenAIService] ERREUR CRITIQUE : AUCUNE CLÉ API TROUVÉE")
             print("═══════════════════════════════════════════════════════════════")
+            await DebugLogger.shared.log("❌ [API] Aucune clé API trouvée", category: "API", level: .error)
             throw OpenAIError.noAPIKey
         }
 
         // Vérifier le format de la clé (doit commencer par "sk-")
         guard apiKey.hasPrefix("sk-") && apiKey.count > 20 else {
             print("❌ [OpenAIService] Format de clé API invalide")
+            await DebugLogger.shared.log("❌ [API] Format de clé API invalide", category: "API", level: .error)
             throw OpenAIError.invalidAPIKey
         }
 
         print("✅ [OpenAIService] Clé API trouvée (format valide)")
+        await DebugLogger.shared.log("✅ [API] Clé API valide", category: "API", level: .debug)
 
         // 2. Créer l'URL
         guard let url = URL(string: endpoint) else {
@@ -140,19 +146,28 @@ final class OpenAIService {
             return false
         }
 
-        // Choisir le modèle approprié
-        let selectedModel = containsImages ? visionModel : defaultModel
-        print("🤖 [OpenAIService] Modèle sélectionné : \(selectedModel) \(containsImages ? "(images détectées)" : "(texte seul)")")
+        // Choisir le modèle approprié depuis les préférences
+        let prefs = PreferencesManager.shared.preferences
+        let selectedModel: String
+        if containsImages {
+            // Pour les images, on utilise toujours gpt-4o (seul modèle vision)
+            selectedModel = "gpt-4o"
+        } else {
+            // Pour le texte, on utilise le modèle choisi dans les préférences
+            selectedModel = prefs.defaultModel.apiModelName
+        }
+        print("🤖 [OpenAIService] Modèle sélectionné : \(selectedModel) \(containsImages ? "(images détectées)" : "(depuis préférences)")")
+        await DebugLogger.shared.log("🤖 [API] Modèle: \(selectedModel) \(containsImages ? "(avec images)" : "")", category: "API", level: .info)
 
         // 5. Convertir les messages au format OpenAI (avec images si présentes)
         let openAIMessages = convertMessagesToOpenAIFormat(messages, systemPrompt: systemPrompt)
 
-        // 6. Créer le body JSON
+        // 6. Créer le body JSON avec maxTokens depuis les préférences
         let requestBody: [String: Any] = [
             "model": selectedModel,
             "messages": openAIMessages,
             "temperature": 0.7,
-            "max_tokens": 2000
+            "max_tokens": prefs.maxTokens
         ]
 
         do {
@@ -165,6 +180,7 @@ final class OpenAIService {
         print("📡 [OpenAIService] Envoi de la requête à \(endpoint)")
         print("📝 [OpenAIService] Modèle: \(selectedModel)")
         print("📝 [OpenAIService] Nombre de messages OpenAI : \(openAIMessages.count) (system + historique)")
+        await DebugLogger.shared.log("📡 [API] Requête en cours vers OpenAI...", category: "API", level: .info)
 
         // Logger la requête dans un fichier
         let requestHeaders = [
@@ -239,6 +255,7 @@ final class OpenAIService {
 
                     print("✅ [OpenAIService] Réponse reçue: \(content.prefix(100))...")
                     print("✅ [OpenAIService] Taille de la réponse: \(content.count) caractères")
+                    await DebugLogger.shared.log("✅ [API] Réponse reçue (\(content.count) caractères)", category: "API", level: .info)
 
                     // 12. Retourner le texte de la réponse
                     return content
@@ -255,18 +272,21 @@ final class OpenAIService {
                 let responseTime = Date().timeIntervalSince(requestStartTime)
                 print("❌ [OpenAIService] Erreur 401: Non autorisé. Clé API invalide.")
                 APILogger.logResponse(statusCode: statusCode, responseTime: responseTime, tokens: nil, responsePreview: "Erreur 401: Clé API invalide")
+                await DebugLogger.shared.log("❌ [API] Erreur 401: Clé API invalide", category: "API", level: .error)
                 throw OpenAIError.invalidAPIKey
 
             case 429:
                 let responseTime = Date().timeIntervalSince(requestStartTime)
                 print("❌ [OpenAIService] Erreur 429: Limite de requêtes atteinte.")
                 APILogger.logResponse(statusCode: statusCode, responseTime: responseTime, tokens: nil, responsePreview: "Erreur 429: Rate limit")
+                await DebugLogger.shared.log("❌ [API] Erreur 429: Rate limit atteint", category: "API", level: .warning)
                 throw OpenAIError.rateLimitExceeded
 
             case 500...599:
                 let responseTime = Date().timeIntervalSince(requestStartTime)
                 print("❌ [OpenAIService] Erreur serveur \(statusCode)")
                 APILogger.logResponse(statusCode: statusCode, responseTime: responseTime, tokens: nil, responsePreview: "Erreur serveur \(statusCode)")
+                await DebugLogger.shared.log("❌ [API] Erreur serveur \(statusCode)", category: "API", level: .error)
                 throw OpenAIError.serverError(statusCode)
 
             default:
@@ -283,17 +303,20 @@ final class OpenAIService {
             print("❌ [OpenAIService] Erreur réseau (URLError): \(urlError.localizedDescription)")
             print("❌ [OpenAIService] Code d'erreur: \(urlError.code.rawValue)")
             APILogger.logError(urlError, context: "Erreur réseau")
+            await DebugLogger.shared.log("❌ [API] Erreur réseau: \(urlError.localizedDescription)", category: "API", level: .error)
             throw OpenAIError.networkError(urlError)
 
         } catch let openAIError as OpenAIError {
             // Erreur déjà typée, la relancer
             APILogger.logError(openAIError, context: "Erreur OpenAI")
+            await DebugLogger.shared.log("❌ [API] Erreur: \(openAIError.localizedDescription)", category: "API", level: .error)
             throw openAIError
 
         } catch {
             // Erreur inconnue
             print("❌ [OpenAIService] Erreur inconnue lors de l'envoi: \(error.localizedDescription)")
             APILogger.logError(error, context: "Erreur inconnue")
+            await DebugLogger.shared.log("❌ [API] Erreur inconnue: \(error.localizedDescription)", category: "API", level: .error)
             throw OpenAIError.networkError(error)
         }
     }

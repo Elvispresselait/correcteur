@@ -166,15 +166,17 @@ struct HeaderView_Previews: PreviewProvider {
                 isSidebarVisible: .constant(true),
                 canRename: true,
                 onRename: {},
-                viewModel: ChatViewModel.preview
+                viewModel: ChatViewModel.preview,
+                isPromptEditorOpen: .constant(false)
             )
-            
+
             HeaderView(
                 title: "Conversation avec un titre très long qui sera tronqué automatiquement",
                 isSidebarVisible: .constant(false),
                 canRename: false,
                 onRename: {},
-                viewModel: ChatViewModel.preview
+                viewModel: ChatViewModel.preview,
+                isPromptEditorOpen: .constant(true)
             )
         }
         .frame(width: 400)

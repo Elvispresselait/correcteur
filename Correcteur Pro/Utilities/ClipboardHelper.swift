@@ -46,14 +46,21 @@ struct ClipboardHelper {
     /// Retourne un ClipboardResult avec l'image, l'erreur éventuelle, et les métadonnées
     static func checkClipboardForImage(autoCompress: Bool = true) -> ClipboardResult {
         let pasteboard = NSPasteboard.general
-        
-        print("🔍 [Clipboard] Vérification du clipboard...")
+
+        let msg1 = "🔍 [Clipboard] Vérification du clipboard..."
+        print(msg1)
+        DebugLogger.shared.log(msg1, category: "Capture")
+
         guard let types = pasteboard.types, !types.isEmpty else {
-            print("❌ [Clipboard] Clipboard vide")
+            let msg = "❌ [Clipboard] Clipboard vide"
+            print(msg)
+            DebugLogger.shared.logError(msg)
             return ClipboardResult(image: nil, error: .empty, mimeType: nil, sizeMB: nil)
         }
         let typesDescription = types.map { String(describing: $0) }
-        print("🔍 [Clipboard] Types disponibles: \(typesDescription)")
+        let msg2 = "🔍 [Clipboard] Types disponibles: \(typesDescription.joined(separator: ", "))"
+        print(msg2)
+        DebugLogger.shared.log(msg2, category: "Capture")
         
         // Formats supportés avec leurs types MIME
         let supportedTypes: [(NSPasteboard.PasteboardType, String)] = [
@@ -66,20 +73,23 @@ struct ClipboardHelper {
         
         // Méthode 1 : Lire directement NSImage
         if let image = pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
-            print("✅ [Clipboard] Image détectée via readObjects (NSImage)")
-            print("✅ [Clipboard] Taille: \(image.size.width)x\(image.size.height)")
-            
+            let msg3 = "✅ [Clipboard] Image détectée: \(Int(image.size.width))x\(Int(image.size.height))"
+            print(msg3)
+            DebugLogger.shared.log(msg3, category: "Capture")
+
             let originalSizeMB = getImageSizeMB(image: image)
-            
+
             if let sizeMB = originalSizeMB {
-                print("📊 [Clipboard] Taille originale: \(String(format: "%.2f", sizeMB)) MB")
-            } else {
-                print("⚠️ [Clipboard] Impossible de déterminer la taille de l'image")
+                let msg4 = "📊 [Clipboard] Taille: \(String(format: "%.2f", sizeMB)) MB"
+                print(msg4)
+                DebugLogger.shared.log(msg4, category: "Capture")
             }
-            
+
             // TEMPS 1 : Accepter toutes les images sans validation de taille
             // La compression se fera après l'upload (TEMPS 2)
-            print("✅ [Clipboard] Image acceptée (validation taille supprimée - compression après upload)")
+            let msg5 = "✅ [Clipboard] Image acceptée"
+            print(msg5)
+            DebugLogger.shared.log(msg5, category: "Capture")
             return ClipboardResult(image: image, error: nil, mimeType: "image/unknown", sizeMB: originalSizeMB)
         }
         
@@ -173,7 +183,7 @@ struct ClipboardHelper {
         print("\n📋 === DIAGNOSTIC CLIPBOARD ===")
         let pasteboard = NSPasteboard.general
         
-        print("Types disponibles: \(pasteboard.types.map { String(describing: $0) })")
+        print("Types disponibles: \(pasteboard.types?.map { String(describing: $0) } ?? [])")
         
         let result = checkClipboardForImage(autoCompress: false)
         if let image = result.image {
