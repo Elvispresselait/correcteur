@@ -63,40 +63,37 @@ Flow:
 
 **TCC Permission**: App requires Screen Recording permission (bundle ID: `Hadrien.Correcteur-Pro`)
 
-### TCC Permission Issues (Important!)
+## Build & Deploy (⚠️ IMPORTANT)
 
-When the app is rebuilt, macOS may invalidate the screen recording permission because the app signature changes. This causes the permission dialog to appear repeatedly.
+**Après chaque rebuild, le cache TCC doit être réinitialisé** car la signature de l'app change et macOS invalide les permissions.
 
-**Symptoms:**
-- Dialog "Correcteur Pro souhaiterait enregistrer l'écran" appears at every capture
-- Screen capture fails even though permission was granted before
-
-**Solution:**
-```bash
-# 1. Reset TCC cache for the app
-tccutil reset ScreenCapture Hadrien.Correcteur-Pro
-
-# 2. Relaunch the app
-pkill -f "Correcteur Pro"; open "/Applications/Correcteur Pro.app"
-
-# 3. Grant permission once when the dialog appears
-# 4. Relaunch the app after granting permission (required by macOS)
-```
-
-**Note:** This is a development issue, not a bug. Production apps signed with a stable certificate don't have this problem.
-
-## Build & Deploy
+### Commandes complètes (copier-coller) :
 
 ```bash
-# Build
+# 1. Build
 xcodebuild -project "Correcteur Pro.xcodeproj" -scheme "Correcteur Pro" -configuration Release build
 
-# Deploy to /Applications
+# 2. Deploy + Reset TCC
 pkill -f "Correcteur Pro" 2>/dev/null
 rm -rf "/Applications/Correcteur Pro.app"
 cp -R ~/Library/Developer/Xcode/DerivedData/Correcteur_Pro-*/Build/Products/Release/Correcteur\ Pro.app /Applications/
+tccutil reset ScreenCapture Hadrien.Correcteur-Pro
 open "/Applications/Correcteur Pro.app"
+
+# 3. Quand le dialogue de permission apparaît :
+#    - Cliquer "Ouvrir Réglages Système..."
+#    - Activer Correcteur Pro
+#    - RELANCER l'app (obligatoire pour macOS)
+pkill -f "Correcteur Pro"; open "/Applications/Correcteur Pro.app"
 ```
+
+### One-liner pour Claude Code :
+
+```bash
+xcodebuild -project "Correcteur Pro.xcodeproj" -scheme "Correcteur Pro" -configuration Release build && pkill -f "Correcteur Pro" 2>/dev/null; rm -rf "/Applications/Correcteur Pro.app" && cp -R ~/Library/Developer/Xcode/DerivedData/Correcteur_Pro-*/Build/Products/Release/Correcteur\ Pro.app /Applications/ && tccutil reset ScreenCapture Hadrien.Correcteur-Pro && open "/Applications/Correcteur Pro.app"
+```
+
+**Note:** Ce problème n'existe pas en production (signature stable).
 
 ## Code Conventions
 
@@ -119,4 +116,4 @@ No automated tests yet. Manual testing via:
 - **Modify prompt**: Edit `AppPreferences.defaultPromptCorrecteur` or relevant prompt property
 - **Change UI colors**: Most gradients defined in view files (ContentView, ChatView, SidebarView)
 - **Debug issues**: Enable debug console via terminal icon in header
-- **Fix TCC permission**: Run `tccutil reset ScreenCapture Hadrien.Correcteur-Pro` then relaunch app
+- **Build & test**: Toujours utiliser le workflow complet (voir section "Build & Deploy") incluant le reset TCC

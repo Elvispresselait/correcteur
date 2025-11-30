@@ -58,10 +58,11 @@ class SelectionCaptureService {
         print(msg2)
         DebugLogger.shared.logCapture(msg2)
 
-        // 3. Convertir le rectangle en coordonnées relatives à l'écran
+        // 3. Convertir de coordonnées macOS globales (origine bottom-left)
+        //    vers coordonnées SCDisplay locales (origine top-left)
         let relativeRect = CGRect(
             x: rect.origin.x - display.frame.origin.x,
-            y: rect.origin.y - display.frame.origin.y,
+            y: display.frame.maxY - rect.maxY,
             width: rect.width,
             height: rect.height
         )
