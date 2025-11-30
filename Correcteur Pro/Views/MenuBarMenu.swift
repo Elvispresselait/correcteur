@@ -16,6 +16,14 @@ struct MenuBarMenu: View {
             openMainWindow()
         }
         .keyboardShortcut("o", modifiers: .command)
+        .task {
+            // Configurer WindowOpener ici car MenuBarExtra est TOUJOURS actif
+            // (contrairement à ContentView qui est détruit quand la fenêtre ferme)
+            WindowOpener.shared.openMainWindowAction = { [openWindow] in
+                openWindow(id: "main")
+            }
+            DebugLogger.shared.log("📱 WindowOpener configuré depuis MenuBarMenu", category: "System")
+        }
 
         Divider()
 

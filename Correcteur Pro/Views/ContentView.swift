@@ -152,6 +152,11 @@ struct ContentView: View {
            viewModel.selectedConversationID != nil {
             _ = viewModel.sendMessage("", images: [image])
             DebugLogger.shared.logCapture("✅ Capture envoyée automatiquement")
+
+            // Forcer le scroll vers le bas après un délai
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                NotificationCenter.default.post(name: .forceScrollToBottom, object: nil)
+            }
         } else {
             viewModel.capturedImage = image
             DebugLogger.shared.logCapture("✅ Capture ajoutée en attente")

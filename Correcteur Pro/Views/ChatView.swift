@@ -1142,6 +1142,9 @@ struct MessagesScrollView: View {
     let messages: [Message]
     let onImageTap: (NSImage) -> Void
 
+    /// ID constant pour l'ancre de scroll en bas
+    private let bottomAnchorID = "bottomAnchor"
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
@@ -1150,6 +1153,11 @@ struct MessagesScrollView: View {
                         MessageBubble(message: message, onImageTap: onImageTap)
                             .id(message.id)
                     }
+
+                    // Ancre invisible en bas pour scroll fiable
+                    Color.clear
+                        .frame(height: 1)
+                        .id(bottomAnchorID)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 20)
@@ -1158,20 +1166,33 @@ struct MessagesScrollView: View {
             .onAppear {
                 scrollToBottom(proxy: proxy)
             }
-            .onChange(of: messages.last?.id) { _, _ in
-                scrollToBottom(proxy: proxy, animated: true)
+            // Trigger 1: Nouveau message ajouté
+            .onChange(of: messages.count) { oldCount, newCount in
+                if newCount > oldCount {
+                    scrollToBottom(proxy: proxy)
+                }
+            }
+            // Trigger 2: Contenu du dernier message change (typing → réponse GPT)
+            .onChange(of: messages.last?.contenu) { _, newContent in
+                if let content = newContent, !content.starts(with: "⏳") {
+                    scrollToBottom(proxy: proxy)
+                }
+            }
+            // Trigger 3: Notification forcée (après capture d'écran)
+            .onReceive(NotificationCenter.default.publisher(for: .forceScrollToBottom)) { _ in
+                scrollToBottom(proxy: proxy)
             }
         }
     }
-    
-    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = false) {
-        guard let lastID = messages.last?.id else { return }
-        if animated {
-            withAnimation(.easeOut(duration: 0.2)) {
-                proxy.scrollTo(lastID, anchor: .bottom)
-            }
-        } else {
-            proxy.scrollTo(lastID, anchor: .bottom)
+
+    /// Scroll vers le bas avec double appel pour contourner les bugs de LazyVStack
+    private func scrollToBottom(proxy: ScrollViewProxy) {
+        // Premier appel immédiat
+        proxy.scrollTo(bottomAnchorID, anchor: .bottom)
+
+        // Deuxième appel avec délai (contourne bug lazy loading)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            proxy.scrollTo(bottomAnchorID, anchor: .bottom)
         }
     }
 }

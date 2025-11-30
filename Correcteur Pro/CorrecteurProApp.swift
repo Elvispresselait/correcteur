@@ -7,6 +7,30 @@
 
 import SwiftUI
 
+// MARK: - WindowOpener Singleton
+
+/// Permet d'ouvrir la fenêtre principale depuis AppDelegate
+/// Nécessaire car @Environment(\.openWindow) n'est accessible que dans les Views SwiftUI
+class WindowOpener {
+    static let shared = WindowOpener()
+    private init() {}
+
+    /// Closure pour ouvrir la fenêtre principale (capturée depuis CorrecteurProApp)
+    var openMainWindowAction: (() -> Void)?
+
+    /// Ouvre la fenêtre principale
+    func openMainWindow() {
+        DispatchQueue.main.async {
+            if let action = self.openMainWindowAction {
+                action()
+                DebugLogger.shared.log("📱 WindowOpener: fenêtre ouverte via openWindow(id:)", category: "System")
+            } else {
+                DebugLogger.shared.logWarning("⚠️ WindowOpener: openMainWindowAction non configurée")
+            }
+        }
+    }
+}
+
 @main
 struct CorrecteurProApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -17,10 +41,6 @@ struct CorrecteurProApp: App {
         WindowGroup(id: "main") {
             ContentView()
                 .frame(minWidth: 450, minHeight: 600)
-                .onReceive(NotificationCenter.default.publisher(for: .openMainWindow)) { _ in
-                    // Géré ici pour avoir accès à openWindow
-                    NSApp.activate(ignoringOtherApps: true)
-                }
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
@@ -109,9 +129,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.makeKeyAndOrderFront(nil)
             DebugLogger.shared.log("📱 Fenêtre existante réactivée", category: "System")
         } else {
-            // Demander l'ouverture via notification (sera capté par CorrecteurProApp)
-            NotificationCenter.default.post(name: .openMainWindow, object: nil)
-            DebugLogger.shared.log("📱 Demande création nouvelle fenêtre", category: "System")
+            // Utiliser WindowOpener pour créer une nouvelle fenêtre via openWindow(id:)
+            WindowOpener.shared.openMainWindow()
         }
     }
 
@@ -213,9 +232,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.makeKeyAndOrderFront(nil)
             DebugLogger.shared.log("📱 Fenêtre existante activée", category: "System")
         } else {
-            // Demander l'ouverture d'une nouvelle fenêtre via notification
-            NotificationCenter.default.post(name: .openMainWindow, object: nil)
-            DebugLogger.shared.log("📱 Demande d'ouverture nouvelle fenêtre", category: "System")
+            // Utiliser WindowOpener pour créer une nouvelle fenêtre via openWindow(id:)
+            WindowOpener.shared.openMainWindow()
         }
 
         // Stocker l'image temporairement pour le cas où la notification arrive avant la fenêtre
@@ -278,5 +296,8 @@ extension Notification.Name {
 
     /// Une erreur de capture s'est produite (object: String message)
     static let captureError = Notification.Name("captureError")
+
+    /// Force le scroll vers le bas de la conversation
+    static let forceScrollToBottom = Notification.Name("forceScrollToBottom")
 }
 
