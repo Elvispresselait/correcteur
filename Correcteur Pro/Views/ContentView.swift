@@ -6,6 +6,48 @@
 //
 
 import SwiftUI
+import AppKit
+
+// MARK: - Visual Effect View (Verre dépoli)
+
+/// Vue pour l'effet de flou macOS natif
+struct VisualEffectBlur: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+    var blendingMode: NSVisualEffectView.BlendingMode
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+    }
+}
+
+// MARK: - Window Transparency Helper
+
+/// Configure la fenêtre pour être transparente
+struct TransparentWindowHelper: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            if let window = view.window {
+                window.backgroundColor = .clear
+                window.isOpaque = false
+            }
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+// MARK: - Content View
 
 struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
@@ -33,7 +75,17 @@ struct ContentView: View {
             let isColumnMode = geometry.size.width >= columnModeThreshold
 
             ZStack {
+                // Helper pour rendre la fenêtre transparente
+                TransparentWindowHelper()
+                    .frame(width: 0, height: 0)
+
+                // Couche 1 : Effet de flou (verre dépoli)
+                VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                    .ignoresSafeArea()
+
+                // Couche 2 : Dégradé avec légère transparence
                 backgroundGradient
+                    .opacity(0.80) // 20% de transparence pour voir derrière
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {

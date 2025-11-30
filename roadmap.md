@@ -13,11 +13,20 @@ Ce document présente la vision à long terme de l'application Correcteur Pro, i
 - ✅ Interface optimisée sans coins arrondis
 - ✅ Raccourcis clavier (Enter = envoyer, Shift+Enter = nouvelle ligne)
 - ✅ **Panneau de préférences natif macOS (Cmd+,)** avec 4 onglets
+- ✅ **Effet verre dépoli** : Transparence subtile avec flou natif macOS (opacity 0.80)
+- ✅ **Éditeur de prompt responsive** : Mode colonne (écran large) et inline (mode compact)
 
 ### Gestion des conversations
 - ✅ Gestion des conversations multiples avec persistance
 - ✅ Historique conversationnel (20 derniers messages configurables)
 - ✅ Sélection de prompts système (Correcteur, Assistant, Traducteur, Personnalisé)
+
+### Prompts personnalisés
+- ✅ Création de prompts personnalisés illimités
+- ✅ Archivage de prompts (avec bouton dédié)
+- ✅ Restauration depuis les préférences
+- ✅ Suppression automatique après 90 jours d'archivage
+- ✅ Prompt correcteur anti-faux positifs (few-shot learning)
 
 ### Images et capture d'écran
 - ✅ Support du copier-coller d'images avec compression automatique
@@ -96,6 +105,33 @@ ls -la "/Applications/Correcteur Pro.app"
 - Aucune (base stable)
 
 ## 🕚 Fonctionnalités à implémenter
+
+### Fonctionnalité archiver les chats
+- Ce que j'aimerais ajouter c'est que quand tu quand je clique sur le bouton dupliquer, que c'est un nouveau chat, que dans cet nouveau chat qui a été dupliqué, on puisse directement déjà été préalablement copié-collé. Que j'ai plus qu'à le modifier. 
+
+### Fonctionnalité copier-coller le texte en plus
+- Mon objetctif est toujours de voir les erreurs dans mes textes rapidement pour pouvoir comprendre mes erreurs (grace aux mots rayés et aux mots en gras)
+- Néanmoins je veux gagner du temps quand je modifie le fichier d'origne et je ne veux plus qu'à avoir à copier coller
+- il faut que je puisse copier-coller dans le chatbot de ce qui m'est renvoyé. A chaque fois il faut qu'on ajoute une fonctionnalité pour copier le message qui a été renvoyé (genre en bas à droite de la réponse). Quand je copie le message qui a été envoyé, je veux bien que juste il y ait une petite étape supplémentaire qui va être l'adaptation au presse-papier. 
+- Je souhaite que à chaque fois que je fasse copier passer dans un dans une petite moulinette, dans un petit... un truc pour modifier le texte. Et que le texte qu'on me renvoie..., on le modifie pour enlever les croix rouges ou les cases à cocher vertes. et que ça supprime les retours à la ligne. Parce que. il est probable que si au cours de l'OCR on avait bien reconnu des retours à la ligne, il est probable que ces retours à la ligne étaient É..taient. en quelque sorte automatiques. C'est juste parce qu'il n'y avait plus plus de place. Et donc l'objectif c'est que quand je colle, bah du coup il n'y ait pas ces retours à la ligne pour que ça se colle proprement et qu'il n'y ait pas la croix rouge devant, af Ainfin que. que.. j'ai pas besoin de la supprimer moi-même à la main. 
+
+Ça veut dire qu'il faut que tu changes dans ce cas-là le la réponse qui est attendue de l'application. Ça veut dire que..., quand tu fais ton call, pardon, API, je veux que dans ton call. tu demandes à la fois du coup, bah cette version, là, la version corrigée avec la croix rouge et tout, et la version, dans un JSON, la version... propre prête à copier-coller. Et dans cette version propre prête à copier-coller, il faut que... donc il faut un JSON quand tu envoies... T'es demandé à l'API qui demande les deux trucs. A la fois the version of text avec les corrections, and at the fois the version corrigée, prête à copier-coller, sans explication. de ce qui a été modifié. 
+
+
+
+### Fonctionnalité hors ligne
+- J'aimerais qu'on réfléchisse ensemble à comment faire en sorte que cette application est également un mode hors ligne. 
+-Déjà, je pense que dans les settings, il faut créer un mode qui puisse s'appeler mode hors ligne.
+- Après, je pense qu'il faut qu'on réfléchisse à un système d'agents. 
+- C'est-à-dire que tu me crées plusieurs processus pour ça. Et en gros, quand je me mets en mode hors ligne, ça appliquera toujours le correcteur hors ligne. 
+- Ça devrait pas être du coup juste le mode hors ligne, mais le mode correcteur hors ligne. 
+- Etape 1 Dans ce mode correcteur hors ligne, je veux d'abord qu'il y ait un premier agent pour compresser un petit peu les photos. Il ne faut pas qu'elles soient trop compressées, je pense qu'il faut qu'elles soient un tout petit peu compressées. 
+- Etape 2, je pense qu'une fois que l'image on l'a et qu'elle est un peu compressée, il faut faire de l'OCR, donc de la reconnaissance de texte, pour faire en sorte que. qui s'affiche à l'écran. Et je veux que. dans la partie OCR, on ait les retours à la ligne. Dès que dans l'image on voit qu'il y a un retour à la ligne, et bah je veux que la partie OCR le détecte. 
+- Etape 3, Je souhaite que l'on fasse les corrections avec un des meilleurs modèles d'intelligence artificielle orient horsale ligne. Je ne sais pas quels sont les modèles, mais peut-être que je puisse potentiellement après choisir le modèle, mais ça ce sera plus tard dans la roadmap. Je choisis moi juste pour l'instant un modèle qui est connu pour être bon en hors ligne.  Je sais pas s'il faut pas utiliser llm-lite on un truc comme ça pour pouvoir changer facilement de modèle par la suite. 
+- étape 4 je veux que ce modèle du coup il corrige les fautes comme on l'avait fait dans le prompt système et peut-être que vu que c'est un modèle hors ligne là c'est bien de fournir un json avancé pour que ça corrige bien toujours comme je veux 
+- Etape 5 Il faut que du coup le modèle hors ligne renvoie le message corrigé, bien comme je l'attends. 
+- Étape 6, 
+
 
 ### Fonctionnalité thème clair
 - Changer l'interface pour que la version claire ressemble à quelque chose
@@ -400,24 +436,30 @@ func queryLegalDatabase(domain: String, query: String) -> [Reference] {
 
 ## 📊 État du projet
 
-**Version actuelle** : 1.0 (base stable)
+**Version actuelle** : 1.1 (prompts & transparence)
 **Statut** : ✅ Production Ready
-**Dernière mise à jour** : 29 novembre 2024
+**Dernière mise à jour** : 30 novembre 2024
+
+### Nouveautés v1.1
+- Système d'archivage des prompts personnalisés (90 jours)
+- Effet verre dépoli avec transparence
+- Prompt correcteur amélioré (anti-faux positifs)
+- Éditeur de prompt responsive
 
 ### Métriques
-- **37 fichiers Swift**
-- **~3900 lignes de code**
+- **~40 fichiers Swift**
+- **~4200 lignes de code**
 - **0 warnings de compilation**
 - **0 bugs connus**
 - **100%** des fonctionnalités de base implémentées
 
-### Prochaine version prévue : 1.1
+### Prochaine version prévue : 1.2
 **Objectifs** :
-- Optimisation compression images
+- Bouton copier texte corrigé
 - Thème clair
 - Recherche dans conversations
 
 ---
 
-*Dernière mise à jour de la roadmap : 29 novembre 2024*
+*Dernière mise à jour de la roadmap : 30 novembre 2024*
 
