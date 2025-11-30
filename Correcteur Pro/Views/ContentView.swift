@@ -130,9 +130,16 @@ struct ContentView: View {
                 do {
                     let image = try await ScreenCaptureService.captureMainScreen()
                     await MainActor.run {
-                        vm?.capturedImage = image
+                        // Auto-envoi si activé ET conversation sélectionnée
+                        if PreferencesManager.shared.preferences.autoSendOnCapture,
+                           vm?.selectedConversationID != nil {
+                            _ = vm?.sendMessage("", images: [image])
+                            DebugLogger.shared.logCapture("✅ Capture envoyée automatiquement")
+                        } else {
+                            vm?.capturedImage = image
+                            DebugLogger.shared.logCapture("✅ Capture ajoutée en attente")
+                        }
                         NSSound(named: "Tink")?.play()
-                        DebugLogger.shared.logCapture("✅ Capture écran principal réussie")
                     }
                 } catch let error as ScreenCaptureError {
                     await MainActor.run {
@@ -159,9 +166,16 @@ struct ContentView: View {
 
             SelectionCaptureService.showSelectionOverlay(
                 onSuccess: { image in
-                    vm?.capturedImage = image
+                    // Auto-envoi si activé ET conversation sélectionnée
+                    if PreferencesManager.shared.preferences.autoSendOnCapture,
+                       vm?.selectedConversationID != nil {
+                        _ = vm?.sendMessage("", images: [image])
+                        DebugLogger.shared.logCapture("✅ Capture zone envoyée automatiquement")
+                    } else {
+                        vm?.capturedImage = image
+                        DebugLogger.shared.logCapture("✅ Capture zone ajoutée en attente")
+                    }
                     NSSound(named: "Tink")?.play()
-                    DebugLogger.shared.logCapture("✅ Capture zone réussie")
                 },
                 onError: { error in
                     // Afficher l'erreur pour que l'utilisateur puisse ouvrir les réglages

@@ -96,6 +96,15 @@ struct CapturePreferencesView: View {
 
             // SECTION : Options
             Section("Options") {
+                Toggle("Envoi automatique après capture", isOn: $prefsManager.preferences.autoSendOnCapture)
+                    .onChange(of: prefsManager.preferences.autoSendOnCapture) { _, _ in
+                        prefsManager.save()
+                    }
+
+                Text("Envoie automatiquement l'image pour correction dès la capture terminée.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
                 Toggle("Son de notification après capture", isOn: $prefsManager.preferences.playsSoundAfterCapture)
                     .onChange(of: prefsManager.preferences.playsSoundAfterCapture) { _, _ in
                         prefsManager.save()
@@ -137,10 +146,6 @@ struct CapturePreferencesView: View {
                         }
                     )
                 }
-
-                Text("⚠️ La capture de zone sélectionnée sera implémentée dans une future version (PHASE 5).")
-                    .font(.caption)
-                    .foregroundColor(.orange)
 
                 Text("Cliquez sur un raccourci pour l'enregistrer. Appuyez sur Échap pour annuler.")
                     .font(.caption)

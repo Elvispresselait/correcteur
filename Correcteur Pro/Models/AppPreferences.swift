@@ -17,12 +17,13 @@ struct AppPreferences: Codable {
     var playsSoundAfterCapture: Bool = true
     var showsCursorInCapture: Bool = false
     var outputFormat: CaptureImageFormat = .png
+    var autoSendOnCapture: Bool = true
 
     // MARK: - RACCOURCIS (stockés comme String "⌥⇧S")
 
-    var hotKeyMainDisplay: String = "⌥⇧S"
+    var hotKeyMainDisplay: String = "⌥⇧X"
     var hotKeyAllDisplays: String = "⌥⇧A"
-    var hotKeySelection: String = "⌥⇧X"
+    var hotKeySelection: String = "⌥⇧S"
 
     // MARK: - INTERFACE
 
