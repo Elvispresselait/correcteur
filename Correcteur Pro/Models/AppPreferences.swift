@@ -31,6 +31,7 @@ struct AppPreferences: Codable {
     var fontSize: Double = 14.0
     var windowPosition: WindowPosition = .center
     var launchAtLogin: Bool = false
+    var showInDock: Bool = true  // Visible par défaut, option pour masquer
 
     // MARK: - API
 

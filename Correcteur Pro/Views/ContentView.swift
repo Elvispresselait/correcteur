@@ -93,8 +93,21 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            setupGlobalHotKey()
-            DebugLogger.shared.log("🚀 Application démarrée", category: "System")
+            DebugLogger.shared.log("📱 ContentView apparue", category: "System")
+            // Vérifier s'il y a une image en attente (capturée avant que la vue soit prête)
+            checkForPendingImage()
+        }
+        // Écouter les captures d'écran depuis AppDelegate
+        .onReceive(NotificationCenter.default.publisher(for: .screenCaptured)) { notification in
+            if let image = notification.object as? NSImage {
+                handleCapturedImage(image)
+            }
+        }
+        // Écouter les erreurs de capture
+        .onReceive(NotificationCenter.default.publisher(for: .captureError)) { notification in
+            if let errorMessage = notification.object as? String {
+                viewModel.captureError = errorMessage
+            }
         }
         .alert("Erreur de capture", isPresented: Binding(
             get: { viewModel.captureError != nil },
@@ -109,92 +122,40 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Screen Capture Setup
+    // MARK: - Capture Handling
 
-    /// Configure les raccourcis globaux pour la capture d'écran.
-    ///
-    /// Cette méthode initialise les callbacks pour les raccourcis clavier :
-    /// - `⌥⇧S` : Capture de l'écran principal
-    /// - `⌥⇧X` : Capture d'une zone sélectionnée (overlay interactif)
-    ///
-    /// Les images capturées sont stockées dans `viewModel.capturedImage` puis
-    /// transférées vers `pendingImages` via un `onChange` dans `ChatView`.
-    private func setupGlobalHotKey() {
-        let vm = viewModel
+    /// Vérifie s'il y a une image en attente dans AppDelegate (avec retry)
+    private func checkForPendingImage() {
+        checkForPendingImageWithRetry(attempts: 0)
+    }
 
-        // Callback pour écran principal (⌥⇧S)
-        GlobalHotKeyManager.shared.onMainDisplayCapture = { [weak vm] in
-            DebugLogger.shared.logCapture("📸 Capture écran principal demandée")
+    /// Vérifie l'image en attente avec plusieurs tentatives
+    private func checkForPendingImageWithRetry(attempts: Int) {
+        let maxAttempts = 5
+        let delayMs = 300  // 300ms entre chaque vérification
 
-            Task {
-                do {
-                    let image = try await ScreenCaptureService.captureMainScreen()
-                    await MainActor.run {
-                        // Auto-envoi si activé ET conversation sélectionnée
-                        if PreferencesManager.shared.preferences.autoSendOnCapture,
-                           vm?.selectedConversationID != nil {
-                            _ = vm?.sendMessage("", images: [image])
-                            DebugLogger.shared.logCapture("✅ Capture envoyée automatiquement")
-                        } else {
-                            vm?.capturedImage = image
-                            DebugLogger.shared.logCapture("✅ Capture ajoutée en attente")
-                        }
-                        NSSound(named: "Tink")?.play()
-                    }
-                } catch let error as ScreenCaptureError {
-                    await MainActor.run {
-                        vm?.captureError = error.userInstructions
-                        DebugLogger.shared.logError("❌ Capture échouée: \(error.errorDescription ?? "Erreur inconnue")")
-                    }
-                } catch {
-                    await MainActor.run {
-                        vm?.captureError = "Erreur inattendue: \(error.localizedDescription)"
-                        DebugLogger.shared.logError("❌ Capture échouée: \(error.localizedDescription)")
-                    }
-                }
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(delayMs)) {
+            if let pendingImage = AppDelegate.consumePendingImage() {
+                DebugLogger.shared.logCapture("📸 Image en attente récupérée (tentative \(attempts + 1))")
+                handleCapturedImage(pendingImage)
+            } else if attempts < maxAttempts {
+                // Réessayer au cas où l'image arrive après
+                checkForPendingImageWithRetry(attempts: attempts + 1)
             }
         }
+    }
 
-        // Callback pour tous les écrans (non implémenté)
-        GlobalHotKeyManager.shared.onAllDisplaysCapture = {
-            DebugLogger.shared.logWarning("⚠️ Capture tous écrans non implémentée")
+    /// Traite une image capturée reçue via notification
+    private func handleCapturedImage(_ image: NSImage) {
+        // Auto-envoi si activé ET conversation sélectionnée
+        if PreferencesManager.shared.preferences.autoSendOnCapture,
+           viewModel.selectedConversationID != nil {
+            _ = viewModel.sendMessage("", images: [image])
+            DebugLogger.shared.logCapture("✅ Capture envoyée automatiquement")
+        } else {
+            viewModel.capturedImage = image
+            DebugLogger.shared.logCapture("✅ Capture ajoutée en attente")
         }
-
-        // Callback pour zone sélectionnée (⌥⇧X)
-        GlobalHotKeyManager.shared.onSelectionCapture = { [weak vm] in
-            DebugLogger.shared.logCapture("📸 Capture zone demandée")
-
-            SelectionCaptureService.showSelectionOverlay(
-                onSuccess: { image in
-                    // Auto-envoi si activé ET conversation sélectionnée
-                    if PreferencesManager.shared.preferences.autoSendOnCapture,
-                       vm?.selectedConversationID != nil {
-                        _ = vm?.sendMessage("", images: [image])
-                        DebugLogger.shared.logCapture("✅ Capture zone envoyée automatiquement")
-                    } else {
-                        vm?.capturedImage = image
-                        DebugLogger.shared.logCapture("✅ Capture zone ajoutée en attente")
-                    }
-                    NSSound(named: "Tink")?.play()
-                },
-                onError: { error in
-                    // Afficher l'erreur pour que l'utilisateur puisse ouvrir les réglages
-                    if let captureError = error as? ScreenCaptureError {
-                        vm?.captureError = captureError.userInstructions
-                        DebugLogger.shared.logError("❌ Capture zone échouée: \(captureError.localizedDescription ?? "Erreur inconnue")")
-                    } else {
-                        vm?.captureError = "Erreur inattendue: \(error.localizedDescription)"
-                        DebugLogger.shared.logError("❌ Capture zone échouée: \(error.localizedDescription)")
-                    }
-                },
-                onCancel: {
-                    DebugLogger.shared.logWarning("⚠️ Capture zone annulée par l'utilisateur")
-                }
-            )
-        }
-
-        // Enregistrer tous les raccourcis depuis les préférences
-        GlobalHotKeyManager.shared.registerAllHotKeys()
     }
 }
 

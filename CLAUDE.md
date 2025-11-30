@@ -30,22 +30,75 @@ Correcteur Pro/
 
 ## Important Files
 
+- `CorrecteurProApp.swift` - Point d'entrée, AppDelegate, MenuBarExtra
 - `ChatView.swift` - Main chat UI, message bubbles, input bar, prompt editor
 - `ChatViewModel.swift` - Business logic, API calls orchestration
 - `OpenAIService.swift` - OpenAI API integration
 - `AppPreferences.swift` - All app preferences and prompt definitions
-- `ContentView.swift` - Root layout with transparency effect
+- `ContentView.swift` - Root layout with transparency effect, notification handlers
+- `Views/MenuBarMenu.swift` - Menu déroulant pour l'icône menu bar
 
-## Recent Features (v1.1)
+## Recent Features (v1.2)
 
-1. **Frosted glass effect** - Window transparency with blur (`VisualEffects.swift`)
-2. **Prompt archiving** - Archive/restore custom prompts with 90-day auto-delete
-3. **Anti-false-positive prompt** - Few-shot learning to prevent incorrect corrections
-4. **Responsive prompt editor** - Column mode (wide) and inline mode (compact)
-5. **Screen capture via keyboard shortcuts**:
-   - `⌥⇧S` (Option+Shift+S) - Capture main screen
-   - `⌥⇧X` (Option+Shift+X) - Capture selected zone with interactive overlay
-   - Captured images are automatically added to pending images in chat
+1. **Menu Bar App** - L'application tourne en arrière-plan avec icône dans la barre de menu
+2. **Raccourcis globaux permanents** - Fonctionnent même fenêtre fermée
+3. **Envoi automatique** - Option pour envoyer automatiquement les captures pour correction
+4. **Frosted glass effect** - Window transparency with blur (`VisualEffects.swift`)
+5. **Prompt archiving** - Archive/restore custom prompts with 90-day auto-delete
+6. **Screen capture via keyboard shortcuts**:
+   - `⌥⇧S` (Option+Shift+S) - Capture zone sélectionnée avec overlay interactif
+   - `⌥⇧X` (Option+Shift+X) - Capture écran principal
+   - Captured images are automatically sent or added to pending images
+
+## Menu Bar App Architecture (v1.2)
+
+L'application est une **menu bar app** qui reste active en arrière-plan :
+
+### Comportement
+- **Icône menu bar** : `checkmark.circle` (SF Symbol) toujours visible
+- **Icône Dock** : Visible par défaut, masquable dans Préférences > Interface
+- **Fermer fenêtre** : L'app reste en vie (ne quitte pas)
+- **Raccourcis globaux** : Fonctionnent même fenêtre fermée
+- **Capture fenêtre fermée** : Ouvre automatiquement la fenêtre et envoie l'image
+
+### Fichiers clés
+
+| Fichier | Rôle |
+|---------|------|
+| `CorrecteurProApp.swift` | Point d'entrée avec `AppDelegate` et `MenuBarExtra` |
+| `Views/MenuBarMenu.swift` | Menu déroulant de la barre de menu |
+| `AppPreferences.swift` | Préférences `showInDock`, `launchAtLogin`, `autoSendOnCapture` |
+
+### AppDelegate
+
+```swift
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Applique showInDock, enregistre les hotkeys
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false  // CRITIQUE : ne pas quitter quand fenêtre fermée
+    }
+}
+```
+
+### Communication AppDelegate ↔ ContentView
+
+Les captures sont transmises via `NotificationCenter` :
+
+1. `AppDelegate.setupHotKeyCallbacks()` capture l'image
+2. Post `.screenCaptured` notification avec l'image
+3. `ContentView.onReceive(.screenCaptured)` traite l'image
+
+```swift
+// Notifications définies dans CorrecteurProApp.swift
+extension Notification.Name {
+    static let openMainWindow = Notification.Name("openMainWindow")
+    static let screenCaptured = Notification.Name("screenCaptured")
+    static let captureError = Notification.Name("captureError")
+}
+```
 
 ## Screen Capture Architecture
 
@@ -55,11 +108,11 @@ The screen capture system uses macOS ScreenCaptureKit:
 - **ScreenCaptureService** (`Utilities/ScreenCaptureService.swift`) - Captures screens using SCScreenshotManager
 - **SelectionCaptureService** (`Utilities/SelectionOverlay/`) - Interactive selection overlay
 
-Flow:
-1. User presses hotkey → `GlobalHotKeyManager` triggers callback
-2. `ContentView.setupGlobalHotKey()` calls `ScreenCaptureService.captureMainScreen()`
-3. Captured image is stored in `ChatViewModel.capturedImage`
-4. `ChatView.onChange(of: viewModel.capturedImage)` transfers it to `pendingImages`
+Flow (depuis v1.2):
+1. User presses hotkey → `GlobalHotKeyManager` triggers callback in `AppDelegate`
+2. `AppDelegate.setupHotKeyCallbacks()` appelle `ScreenCaptureService` ou `SelectionCaptureService`
+3. Image capturée → `NotificationCenter.post(name: .screenCaptured, object: image)`
+4. `ContentView.onReceive(.screenCaptured)` → auto-envoi ou ajout à `pendingImages`
 
 **TCC Permission**: App requires Screen Recording permission (bundle ID: `Hadrien.Correcteur-Pro`)
 
@@ -108,7 +161,17 @@ No automated tests yet. Manual testing via:
 1. Build and run in Xcode
 2. Test with sample images containing text
 3. Verify corrections display correctly
-4. Test screen capture shortcuts (⌥⇧S, ⌥⇧X) - requires TCC permission
+4. Test screen capture shortcuts (⌥⇧S zone, ⌥⇧X écran) - requires TCC permission
+
+### Tests Menu Bar App (v1.2)
+- [ ] Icône checkmark.circle apparaît dans la barre de menu
+- [ ] Menu déroulant s'affiche au clic sur l'icône
+- [ ] "Ouvrir Correcteur Pro" ouvre/active la fenêtre
+- [ ] Fermer la fenêtre (⌘W) ne quitte PAS l'app
+- [ ] ⌥⇧S fonctionne même fenêtre fermée → ouvre la fenêtre
+- [ ] ⌥⇧X fonctionne même fenêtre fermée → ouvre la fenêtre
+- [ ] Toggle "Afficher dans le Dock" fonctionne immédiatement
+- [ ] "Quitter Correcteur Pro" termine vraiment l'app
 
 ## Common Tasks
 
@@ -117,3 +180,6 @@ No automated tests yet. Manual testing via:
 - **Change UI colors**: Most gradients defined in view files (ContentView, ChatView, SidebarView)
 - **Debug issues**: Enable debug console via terminal icon in header
 - **Build & test**: Toujours utiliser le workflow complet (voir section "Build & Deploy") incluant le reset TCC
+- **Modifier le menu bar**: Edit `Views/MenuBarMenu.swift`
+- **Ajouter un callback hotkey**: Edit `AppDelegate.setupHotKeyCallbacks()` dans `CorrecteurProApp.swift`
+- **Changer l'icône menu bar**: Modifier le `Image(systemName:)` dans `MenuBarExtra` de `CorrecteurProApp.swift`

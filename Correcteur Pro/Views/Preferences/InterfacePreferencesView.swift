@@ -6,11 +6,13 @@
 //
 
 import SwiftUI
+import ServiceManagement
 
 struct InterfacePreferencesView: View {
 
     @ObservedObject var prefsManager = PreferencesManager.shared
     @StateObject private var debugLogger = DebugLogger.shared
+    @State private var launchAtLoginError: String?
 
     var body: some View {
         Form {
@@ -73,7 +75,23 @@ struct InterfacePreferencesView: View {
                         configureLaunchAtLogin(newValue)
                     }
 
-                Text("Cette option nécessite l'accès aux autorisations système")
+                if let error = launchAtLoginError {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Toggle("Afficher dans le Dock", isOn: $prefsManager.preferences.showInDock)
+                    .onChange(of: prefsManager.preferences.showInDock) { _, newValue in
+                        prefsManager.save()
+                        NSApp.setActivationPolicy(newValue ? .regular : .accessory)
+                    }
+
+                Text("L'icône de menu bar reste toujours visible. Désactivez cette option pour masquer l'icône du Dock.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -107,6 +125,10 @@ struct InterfacePreferencesView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear {
+            // Synchroniser l'état avec SMAppService au chargement
+            syncLaunchAtLoginState()
+        }
     }
 
     // MARK: - Helper Methods
@@ -123,10 +145,47 @@ struct InterfacePreferencesView: View {
         }
     }
 
-    /// Configure le lancement au démarrage (helper pour SMLoginItemSetEnabled)
+    /// Configure le lancement au démarrage avec SMAppService (macOS 13+)
     private func configureLaunchAtLogin(_ enabled: Bool) {
-        // TODO: Implémenter avec SMAppService (macOS 13+) ou SMLoginItemSetEnabled
-        print(enabled ? "✅ Lancement au démarrage activé" : "❌ Lancement au démarrage désactivé")
+        launchAtLoginError = nil
+
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+                DebugLogger.shared.log("✅ Lancement au démarrage activé", category: "System")
+            } else {
+                try SMAppService.mainApp.unregister()
+                DebugLogger.shared.log("❌ Lancement au démarrage désactivé", category: "System")
+            }
+        } catch {
+            DebugLogger.shared.log("⚠️ Erreur launch at login: \(error.localizedDescription)", category: "System")
+
+            // Message d'erreur user-friendly
+            if error.localizedDescription.contains("Operation not permitted") ||
+               error.localizedDescription.contains("code signing") {
+                launchAtLoginError = "Nécessite une signature valide (non disponible en dev)"
+            } else {
+                launchAtLoginError = error.localizedDescription
+            }
+
+            // Remettre l'état précédent en cas d'erreur
+            DispatchQueue.main.async {
+                prefsManager.preferences.launchAtLogin = !enabled
+                prefsManager.save()
+            }
+        }
+    }
+
+    /// Synchronise l'état de la préférence avec SMAppService
+    private func syncLaunchAtLoginState() {
+        let currentStatus = SMAppService.mainApp.status
+        let isEnabled = currentStatus == .enabled
+
+        if prefsManager.preferences.launchAtLogin != isEnabled {
+            prefsManager.preferences.launchAtLogin = isEnabled
+            prefsManager.save()
+            DebugLogger.shared.log("🔄 État launch at login synchronisé: \(isEnabled)", category: "System")
+        }
     }
 }
 
