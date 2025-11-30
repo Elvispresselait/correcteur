@@ -108,27 +108,73 @@ struct ContentView: View {
                 DebugLogger.shared.log("✅ [System] Test logger après 0.5s - Si tu vois ce message, le logger fonctionne!", category: "System")
             }
         }
+        .alert("Erreur de capture", isPresented: Binding(
+            get: { viewModel.captureError != nil },
+            set: { if !$0 { viewModel.captureError = nil } }
+        )) {
+            Button("Ouvrir Préférences Système") {
+                ScreenCaptureService.openSystemPreferences()
+            }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.captureError ?? "")
+        }
     }
 
     // MARK: - Global HotKey Setup
 
     /// Configure les raccourcis globaux pour la capture d'écran
     private func setupGlobalHotKey() {
+        // Capture la référence au viewModel pour les closures
+        let vm = viewModel
+
         // Callback pour écran principal
-        GlobalHotKeyManager.shared.onMainDisplayCapture = {
-            // TODO: Réactiver quand sendScreenCapture sera implémenté
-            print("📸 Capture d'écran principal demandée")
+        GlobalHotKeyManager.shared.onMainDisplayCapture = { [weak vm] in
+            print("📸 [ContentView] Capture d'écran principal demandée")
+            DebugLogger.shared.logCapture("📸 Raccourci capture écran principal activé")
+
+            Task {
+                do {
+                    let image = try await ScreenCaptureService.captureMainScreen()
+                    await MainActor.run {
+                        vm?.capturedImage = image
+                        NSSound(named: "Tink")?.play()
+                        DebugLogger.shared.logCapture("✅ Capture écran principal réussie")
+                    }
+                } catch let error as ScreenCaptureError {
+                    await MainActor.run {
+                        vm?.captureError = error.userInstructions
+                        DebugLogger.shared.logError("❌ Capture échouée: \(error.errorDescription ?? "Erreur inconnue")")
+                    }
+                } catch {
+                    await MainActor.run {
+                        vm?.captureError = "Erreur inattendue: \(error.localizedDescription)"
+                        DebugLogger.shared.logError("❌ Capture échouée: \(error.localizedDescription)")
+                    }
+                }
+            }
         }
 
         // Callback pour tous les écrans
         GlobalHotKeyManager.shared.onAllDisplaysCapture = {
             print("⚠️ Capture de tous les écrans pas encore implémentée")
+            DebugLogger.shared.logWarning("⚠️ Capture tous écrans non implémentée")
         }
 
         // Callback pour zone sélectionnée
-        GlobalHotKeyManager.shared.onSelectionCapture = {
-            // TODO: Réactiver quand sendScreenCapture sera implémenté
-            print("📸 Capture de zone demandée")
+        GlobalHotKeyManager.shared.onSelectionCapture = { [weak vm] in
+            print("📸 [ContentView] Capture de zone demandée")
+            DebugLogger.shared.logCapture("📸 Raccourci capture zone activé")
+
+            SelectionCaptureService.showSelectionOverlay { image in
+                if let image = image {
+                    vm?.capturedImage = image
+                    NSSound(named: "Tink")?.play()
+                    DebugLogger.shared.logCapture("✅ Capture zone réussie")
+                } else {
+                    DebugLogger.shared.logWarning("⚠️ Capture zone annulée ou échouée")
+                }
+            }
         }
 
         // Enregistrer tous les raccourcis depuis les préférences

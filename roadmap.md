@@ -102,12 +102,14 @@ ls -la "/Applications/Correcteur Pro.app"
 ---
 
 ## 🚀 Fonctionnalités en cours de développement
-- Aucune (base stable)
+- Debugging prise de photo
 
 ## 🕚 Fonctionnalités à implémenter
 
 ### Fonctionnalité archiver les chats
 - Ce que j'aimerais ajouter c'est que quand tu quand je clique sur le bouton dupliquer, que c'est un nouveau chat, que dans cet nouveau chat qui a été dupliqué, on puisse directement déjà été préalablement copié-collé. Que j'ai plus qu'à le modifier. 
+
+
 
 ### Fonctionnalité copier-coller le texte en plus
 - Mon objetctif est toujours de voir les erreurs dans mes textes rapidement pour pouvoir comprendre mes erreurs (grace aux mots rayés et aux mots en gras)

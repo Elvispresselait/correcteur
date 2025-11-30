@@ -98,6 +98,19 @@ struct ChatView: View {
                 }
             }
         }
+        // Observer les images capturées via raccourci clavier
+        .onChange(of: viewModel.capturedImage) { _, newImage in
+            if let image = newImage {
+                // Ajouter l'image aux pendingImages avec animation
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    pendingImages.append(image)
+                }
+                // Afficher toast de confirmation
+                showToast(.success("📸 Image capturée"))
+                // Reset pour permettre la prochaine capture
+                viewModel.capturedImage = nil
+            }
+        }
         .alert("Renommer la conversation", isPresented: $isRenamingConversation, actions: {
             TextField("Nouveau titre", text: $renameDraft)
             Button("Annuler", role: .cancel) {

@@ -46,6 +46,12 @@ final class ChatViewModel: ObservableObject {
     @Published var customPrompt: String = ""
     @Published var isGenerating: Bool = false // État de chargement pour l'API
 
+    /// Image capturée via raccourci clavier (à transférer vers pendingImages)
+    @Published var capturedImage: NSImage? = nil
+
+    /// Erreur de capture à afficher
+    @Published var captureError: String? = nil
+
     // Service de persistance
     private let storage = ConversationStorage.shared
 
