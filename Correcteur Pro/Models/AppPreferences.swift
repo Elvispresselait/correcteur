@@ -154,19 +154,19 @@ struct CustomPrompt: Codable, Identifiable, Equatable {
         archivedAt != nil
     }
 
-    /// Nombre de jours restants avant suppression définitive (30 jours après archivage)
+    /// Nombre de jours restants avant suppression définitive (90 jours après archivage)
     var daysUntilDeletion: Int? {
         guard let archivedAt = archivedAt else { return nil }
-        let deletionDate = Calendar.current.date(byAdding: .day, value: 30, to: archivedAt) ?? archivedAt
+        let deletionDate = Calendar.current.date(byAdding: .day, value: 90, to: archivedAt) ?? archivedAt
         let days = Calendar.current.dateComponents([.day], from: Date(), to: deletionDate).day ?? 0
         return max(0, days)
     }
 
-    /// Indique si le prompt doit être supprimé définitivement (archivé depuis plus de 30 jours)
+    /// Indique si le prompt doit être supprimé définitivement (archivé depuis plus de 90 jours)
     var shouldBeDeleted: Bool {
         guard let archivedAt = archivedAt else { return false }
         let daysSinceArchive = Calendar.current.dateComponents([.day], from: archivedAt, to: Date()).day ?? 0
-        return daysSinceArchive >= 30
+        return daysSinceArchive >= 90
     }
 }
 

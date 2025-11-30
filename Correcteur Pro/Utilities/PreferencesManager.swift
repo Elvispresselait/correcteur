@@ -75,7 +75,7 @@ class PreferencesManager: ObservableObject {
         print("✅ Prompt ajouté : \(prompt.name)")
     }
 
-    /// Archiver un prompt (sera supprimé après 30 jours)
+    /// Archiver un prompt (sera supprimé après 90 jours)
     func archivePrompt(id: UUID) {
         if let index = preferences.customPrompts.firstIndex(where: { $0.id == id }) {
             preferences.customPrompts[index].archivedAt = Date()
@@ -103,7 +103,7 @@ class PreferencesManager: ObservableObject {
         }
     }
 
-    /// Nettoyer les prompts expirés (archivés depuis plus de 30 jours)
+    /// Nettoyer les prompts expirés (archivés depuis plus de 90 jours)
     func cleanupExpiredPrompts() {
         let expiredPrompts = preferences.customPrompts.filter { $0.shouldBeDeleted }
         for prompt in expiredPrompts {

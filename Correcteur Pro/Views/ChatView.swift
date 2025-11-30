@@ -434,7 +434,7 @@ struct CustomPromptRowButton: View {
                 onArchive?()
             }
         } message: {
-            Text("Le prompt \"\(prompt.name)\" sera archivé pendant 30 jours. Vous pourrez le restaurer depuis les Préférences.")
+            Text("Le prompt \"\(prompt.name)\" sera archivé pendant 90 jours. Vous pourrez le restaurer depuis les Préférences.")
         }
     }
 }
@@ -602,7 +602,22 @@ struct PromptEditorView: View {
     @Binding var isOpen: Bool
     @State private var editedPrompt: String = ""
     @State private var originalPrompt: String = ""
+    @State private var showArchiveAlert: Bool = false
     @FocusState private var isFocused: Bool
+
+    /// Vérifie si c'est un prompt personnalisé (archivable)
+    private var isCustomPrompt: Bool {
+        viewModel.promptType == .personnalise && viewModel.selectedCustomPromptID != nil
+    }
+
+    /// Nom du prompt personnalisé sélectionné
+    private var customPromptName: String {
+        guard let id = viewModel.selectedCustomPromptID,
+              let prompt = PreferencesManager.shared.preferences.customPrompts.first(where: { $0.id == id }) else {
+            return "Prompt"
+        }
+        return prompt.name
+    }
 
     /// Récupère le prompt sauvegardé selon le type sélectionné
     private var savedPrompt: String {
@@ -713,22 +728,43 @@ struct PromptEditorView: View {
                     .buttonStyle(.plain)
                     .help("Sauvegarder les modifications")
                 } else {
-                    // Bouton pour créer une branche (nouveau prompt basé sur celui-ci)
-                    Button(action: createBranch) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.triangle.branch")
-                                .font(.system(size: 10))
-                            Text("Dupliquer")
-                                .font(.system(size: 11, weight: .medium))
+                    HStack(spacing: 8) {
+                        // Bouton Archiver (seulement pour les prompts personnalisés)
+                        if isCustomPrompt {
+                            Button(action: { showArchiveAlert = true }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "archivebox")
+                                        .font(.system(size: 10))
+                                    Text("Archiver")
+                                        .font(.system(size: 11, weight: .medium))
+                                }
+                                .foregroundColor(.orange.opacity(0.9))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color.orange.opacity(0.15))
+                                .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Archiver ce prompt (suppression dans 90 jours)")
                         }
-                        .foregroundColor(.white.opacity(0.7))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(6)
+
+                        // Bouton pour créer une branche (nouveau prompt basé sur celui-ci)
+                        Button(action: createBranch) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.triangle.branch")
+                                    .font(.system(size: 10))
+                                Text("Dupliquer")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundColor(.white.opacity(0.7))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(6)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Créer un nouveau prompt basé sur celui-ci")
                     }
-                    .buttonStyle(.plain)
-                    .help("Créer un nouveau prompt basé sur celui-ci")
                 }
             }
             .padding(.horizontal, 16)
@@ -743,6 +779,14 @@ struct PromptEditorView: View {
                         .stroke(isModified ? Color.red.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1)
                 )
         )
+        .alert("Archiver ce prompt ?", isPresented: $showArchiveAlert) {
+            Button("Annuler", role: .cancel) {}
+            Button("Archiver", role: .destructive) {
+                archiveCurrentPrompt()
+            }
+        } message: {
+            Text("Le prompt \"\(customPromptName)\" sera archivé pendant 90 jours. Vous pourrez le restaurer depuis les Préférences.")
+        }
         .onAppear {
             editedPrompt = savedPrompt
             originalPrompt = savedPrompt
@@ -752,6 +796,17 @@ struct PromptEditorView: View {
             // Recharger quand le type change
             editedPrompt = savedPrompt
             originalPrompt = savedPrompt
+        }
+    }
+
+    /// Archive le prompt personnalisé actuel
+    private func archiveCurrentPrompt() {
+        guard let id = viewModel.selectedCustomPromptID else { return }
+        PreferencesManager.shared.archivePrompt(id: id)
+        viewModel.selectedCustomPromptID = nil
+        viewModel.promptType = .correcteur
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isOpen = false
         }
     }
 
@@ -793,7 +848,22 @@ struct PromptEditorColumn: View {
     @Binding var isOpen: Bool
     @State private var editedPrompt: String = ""
     @State private var originalPrompt: String = ""
+    @State private var showArchiveAlert: Bool = false
     @FocusState private var isFocused: Bool
+
+    /// Vérifie si c'est un prompt personnalisé (archivable)
+    private var isCustomPrompt: Bool {
+        viewModel.promptType == .personnalise && viewModel.selectedCustomPromptID != nil
+    }
+
+    /// Nom du prompt personnalisé sélectionné
+    private var customPromptName: String {
+        guard let id = viewModel.selectedCustomPromptID,
+              let prompt = PreferencesManager.shared.preferences.customPrompts.first(where: { $0.id == id }) else {
+            return "Prompt"
+        }
+        return prompt.name
+    }
 
     /// Récupère le prompt sauvegardé selon le type sélectionné
     private var savedPrompt: String {
@@ -908,27 +978,51 @@ struct PromptEditorColumn: View {
                         .buttonStyle(.plain)
                     }
                 } else {
-                    // Bouton pour dupliquer
-                    Button(action: createBranch) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.triangle.branch")
-                                .font(.system(size: 10))
-                            Text("Dupliquer")
-                                .font(.system(size: 11, weight: .medium))
+                    // Boutons Archiver et Dupliquer
+                    HStack(spacing: 8) {
+                        // Bouton Archiver (seulement pour les prompts personnalisés)
+                        if isCustomPrompt {
+                            Button(action: { showArchiveAlert = true }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "archivebox")
+                                        .font(.system(size: 10))
+                                    Text("Archiver")
+                                        .font(.system(size: 11, weight: .medium))
+                                }
+                                .foregroundColor(.orange.opacity(0.9))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(Color.orange.opacity(0.15))
+                                .cornerRadius(8)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Archiver ce prompt (suppression dans 90 jours)")
                         }
-                        .foregroundColor(.white.opacity(0.7))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(8)
+
+                        // Bouton pour dupliquer
+                        Button(action: createBranch) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.triangle.branch")
+                                    .font(.system(size: 10))
+                                Text("Dupliquer")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundColor(.white.opacity(0.7))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Créer un nouveau prompt basé sur celui-ci")
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(isModified ? Color.red.opacity(0.1) : Color.clear)
         }
+        .padding(.top, 12) // Aligner avec la sidebar et le header
         .frame(maxHeight: .infinity)
         .background(columnBackground)
         .overlay(
@@ -937,6 +1031,14 @@ struct PromptEditorColumn: View {
                 .frame(width: 1),
             alignment: .leading
         )
+        .alert("Archiver ce prompt ?", isPresented: $showArchiveAlert) {
+            Button("Annuler", role: .cancel) {}
+            Button("Archiver", role: .destructive) {
+                archiveCurrentPrompt()
+            }
+        } message: {
+            Text("Le prompt \"\(customPromptName)\" sera archivé pendant 90 jours. Vous pourrez le restaurer depuis les Préférences.")
+        }
         .onAppear {
             editedPrompt = savedPrompt
             originalPrompt = savedPrompt
@@ -945,6 +1047,17 @@ struct PromptEditorColumn: View {
         .onChange(of: viewModel.promptType) { _, _ in
             editedPrompt = savedPrompt
             originalPrompt = savedPrompt
+        }
+    }
+
+    /// Archive le prompt personnalisé actuel
+    private func archiveCurrentPrompt() {
+        guard let id = viewModel.selectedCustomPromptID else { return }
+        PreferencesManager.shared.archivePrompt(id: id)
+        viewModel.selectedCustomPromptID = nil
+        viewModel.promptType = .correcteur
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isOpen = false
         }
     }
 

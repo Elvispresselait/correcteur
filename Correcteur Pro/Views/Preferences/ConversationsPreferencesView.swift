@@ -141,7 +141,7 @@ struct ConversationsPreferencesView: View {
                         Text("Aucun prompt archivé")
                             .foregroundColor(.secondary)
                     }
-                    Text("Les prompts archivés apparaîtront ici. Ils seront supprimés définitivement après 30 jours.")
+                    Text("Les prompts archivés apparaîtront ici. Ils seront supprimés définitivement après 90 jours.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
