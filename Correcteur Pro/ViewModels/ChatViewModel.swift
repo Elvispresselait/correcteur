@@ -224,19 +224,38 @@ final class ChatViewModel: ObservableObject {
               let index = conversations.firstIndex(where: { $0.id == id }) else {
             return false
         }
-        
-        // TEMPS 3 : Convertir les images compressées en ImageData pour l'API
-        // Les images dans pendingImages sont déjà compressées (TEMPS 2)
+
+        // Récupérer les préférences OCR
+        let prefs = PreferencesManager.shared.preferences
+        let ocrMode = prefs.imageProcessingMode
+        let ocrThreshold = prefs.ocrConfidenceThreshold
+
+        // Si on a des images et que le mode n'est pas Vision pur, traiter via OCR
+        if let images = images, !images.isEmpty, ocrMode != .vision {
+            // Lancer le traitement OCR en async
+            Task {
+                await sendMessageWithOCR(
+                    text: trimmed,
+                    images: images,
+                    conversationIndex: index,
+                    mode: ocrMode,
+                    threshold: ocrThreshold
+                )
+            }
+            return true
+        }
+
+        // Mode Vision ou pas d'images : comportement classique
         var imageDataArray: [ImageData]? = nil
         if let images = images, !images.isEmpty {
             print("🖼️ [ChatViewModel] TEMPS 3: Conversion de \(images.count) image(s) compressée(s) en ImageData...")
             print("ℹ️ [ChatViewModel] Les images sont déjà compressées (TEMPS 2), conversion directe en base64")
             imageDataArray = convertImagesToImageData(images, alreadyCompressed: true)
-            
+
             if let imageData = imageDataArray {
                 print("✅ [ChatViewModel] \(imageData.count) image(s) convertie(s) avec succès")
-                for (index, data) in imageData.enumerated() {
-                    print("  Image \(index + 1): \(String(format: "%.2f", data.originalSizeMB)) MB -> \(String(format: "%.2f", data.finalSizeMB)) MB (\(data.format))")
+                for (idx, data) in imageData.enumerated() {
+                    print("  Image \(idx + 1): \(String(format: "%.2f", data.originalSizeMB)) MB -> \(String(format: "%.2f", data.finalSizeMB)) MB (\(data.format))")
                     if data.wasCompressed {
                         print("    Compression: \(String(format: "%.1f", data.compressionRatio * 100))%")
                     }
@@ -244,10 +263,9 @@ final class ChatViewModel: ObservableObject {
                 }
             } else {
                 print("❌ [ChatViewModel] Échec de la conversion des images - aucune image n'a pu être convertie")
-                // Note: On continue quand même pour ne pas bloquer l'envoi du message texte
             }
         }
-        
+
         let userMessage = Message(contenu: trimmed, isUser: true, images: images, imageData: imageDataArray)
         conversations[index].messages.append(userMessage)
         conversations[index].lastModified = Date()
@@ -454,7 +472,7 @@ final class ChatViewModel: ObservableObject {
             print("❌ [ChatViewModel] ImageData invalide pour l'image \(index)")
             return nil
         }
-        
+
         // Logs détaillés
         if alreadyCompressed {
             let base64Size = imageData.base64SizeMB
@@ -473,8 +491,262 @@ final class ChatViewModel: ObservableObject {
             print("ℹ️ [ChatViewModel] Image \(index) pas de compression nécessaire")
             print("  📦 Base64: \(String(format: "%.2f", base64Size)) MB, format: \(format)")
         }
-        
+
         return imageData
+    }
+
+    // MARK: - OCR Processing
+
+    /// Résultat du traitement OCR d'une image
+    struct OCRProcessingResult {
+        let ocrText: String?
+        let ocrConfidence: Float?
+        let usedOCR: Bool
+        let shouldUseVision: Bool // True si on doit envoyer l'image à Vision (fallback ou mode Vision)
+    }
+
+    /// Traite une image avec OCR selon les préférences
+    /// - Parameters:
+    ///   - image: Image à traiter
+    ///   - mode: Mode de traitement (vision, ocr, auto)
+    ///   - confidenceThreshold: Seuil de confiance pour le mode auto
+    /// - Returns: Résultat du traitement OCR
+    func processImageWithOCR(
+        _ image: NSImage,
+        mode: ImageProcessingMode,
+        confidenceThreshold: Float
+    ) async -> OCRProcessingResult {
+        // Mode Vision : pas d'OCR, envoyer l'image directement
+        if mode == .vision {
+            DebugLogger.shared.log("📷 Mode Vision : envoi de l'image sans OCR", category: "OCR")
+            return OCRProcessingResult(
+                ocrText: nil,
+                ocrConfidence: nil,
+                usedOCR: false,
+                shouldUseVision: true
+            )
+        }
+
+        // Mode OCR ou Auto : tenter l'extraction
+        do {
+            let ocrResult = try await OCRService.shared.extractText(from: image)
+            DebugLogger.shared.log(
+                "📝 OCR extrait: \(ocrResult.blockCount) blocs, confiance \(Int(ocrResult.confidence * 100))%",
+                category: "OCR"
+            )
+
+            // Mode OCR forcé : utiliser le texte même si confiance basse
+            if mode == .ocr {
+                if ocrResult.isEmpty {
+                    DebugLogger.shared.logWarning("⚠️ Mode OCR forcé mais aucun texte détecté")
+                    // Fallback vers Vision si autoFallback activé
+                    let autoFallback = PreferencesManager.shared.preferences.autoFallbackToVision
+                    return OCRProcessingResult(
+                        ocrText: nil,
+                        ocrConfidence: ocrResult.confidence,
+                        usedOCR: false,
+                        shouldUseVision: autoFallback
+                    )
+                }
+                return OCRProcessingResult(
+                    ocrText: ocrResult.text,
+                    ocrConfidence: ocrResult.confidence,
+                    usedOCR: true,
+                    shouldUseVision: false
+                )
+            }
+
+            // Mode Auto : vérifier le seuil de confiance
+            if ocrResult.shouldFallbackToVision(threshold: confidenceThreshold) {
+                DebugLogger.shared.logWarning(
+                    "⚠️ OCR confiance insuffisante (\(Int(ocrResult.confidence * 100))% < \(Int(confidenceThreshold * 100))%), fallback Vision"
+                )
+                return OCRProcessingResult(
+                    ocrText: ocrResult.text, // On garde le texte pour référence
+                    ocrConfidence: ocrResult.confidence,
+                    usedOCR: false,
+                    shouldUseVision: true
+                )
+            }
+
+            // OCR réussi avec confiance suffisante
+            DebugLogger.shared.log("✅ OCR validé (confiance \(Int(ocrResult.confidence * 100))%)", category: "OCR")
+            return OCRProcessingResult(
+                ocrText: ocrResult.text,
+                ocrConfidence: ocrResult.confidence,
+                usedOCR: true,
+                shouldUseVision: false
+            )
+
+        } catch {
+            DebugLogger.shared.logError("❌ Erreur OCR: \(error.localizedDescription)")
+            // En cas d'erreur, fallback vers Vision si autoFallback activé
+            let autoFallback = PreferencesManager.shared.preferences.autoFallbackToVision
+            return OCRProcessingResult(
+                ocrText: nil,
+                ocrConfidence: nil,
+                usedOCR: false,
+                shouldUseVision: autoFallback
+            )
+        }
+    }
+
+    /// Envoie un message avec traitement OCR des images
+    private func sendMessageWithOCR(
+        text: String,
+        images: [NSImage],
+        conversationIndex: Int,
+        mode: ImageProcessingMode,
+        threshold: Float
+    ) async {
+        DebugLogger.shared.log("🔍 Début traitement OCR pour \(images.count) image(s)", category: "OCR")
+
+        var allOCRTexts: [String] = []
+        var allConfidences: [Float] = []
+        var usedOCR = false
+        var shouldUseVision = false
+        var imagesToSend: [NSImage] = []
+
+        // Traiter chaque image
+        for (idx, image) in images.enumerated() {
+            DebugLogger.shared.log("📝 OCR image \(idx + 1)/\(images.count)...", category: "OCR")
+            let result = await processImageWithOCR(image, mode: mode, confidenceThreshold: threshold)
+
+            if let ocrText = result.ocrText, !ocrText.isEmpty {
+                allOCRTexts.append(ocrText)
+            }
+            if let conf = result.ocrConfidence {
+                allConfidences.append(conf)
+            }
+            if result.usedOCR {
+                usedOCR = true
+            }
+            if result.shouldUseVision {
+                shouldUseVision = true
+                imagesToSend.append(image)
+            }
+        }
+
+        // Construire le contenu du message
+        var messageContent = text
+        let combinedOCRText = allOCRTexts.joined(separator: "\n\n---\n\n")
+        let avgConfidence: Float? = allConfidences.isEmpty ? nil : allConfidences.reduce(0, +) / Float(allConfidences.count)
+
+        // Si OCR utilisé, ajouter le texte extrait au message
+        if usedOCR && !combinedOCRText.isEmpty {
+            if messageContent.isEmpty {
+                messageContent = combinedOCRText
+            } else {
+                messageContent = "\(messageContent)\n\n[Texte extrait de l'image]\n\(combinedOCRText)"
+            }
+            DebugLogger.shared.log(
+                "✅ OCR réussi: \(combinedOCRText.count) caractères, confiance \(Int((avgConfidence ?? 0) * 100))%",
+                category: "OCR"
+            )
+        }
+
+        // Préparer les données d'image si fallback Vision
+        var imageDataArray: [ImageData]? = nil
+        if shouldUseVision && !imagesToSend.isEmpty {
+            DebugLogger.shared.log("📷 Fallback Vision: conversion de \(imagesToSend.count) image(s)", category: "OCR")
+            imageDataArray = convertImagesToImageData(imagesToSend, alreadyCompressed: true)
+        }
+
+        // Créer le message utilisateur avec métadonnées OCR
+        let userMessage = Message(
+            contenu: messageContent,
+            isUser: true,
+            images: images, // Toujours afficher les images dans l'UI
+            imageData: imageDataArray, // Seulement si fallback Vision
+            ocrText: usedOCR ? combinedOCRText : nil,
+            ocrConfidence: avgConfidence,
+            usedOCR: usedOCR
+        )
+
+        // Ajouter le message à la conversation
+        conversations[conversationIndex].messages.append(userMessage)
+        conversations[conversationIndex].lastModified = Date()
+        storage.save(conversations[conversationIndex])
+
+        // Créer le message de chargement
+        let typingMessageID = UUID()
+        let typingMessage = Message(
+            id: typingMessageID,
+            contenu: "⏳ Génération en cours...",
+            isUser: false
+        )
+        conversations[conversationIndex].messages.append(typingMessage)
+        isGenerating = true
+
+        // Appeler l'API
+        do {
+            let systemPrompt = currentSystemPrompt
+            let allMessages = conversations[conversationIndex].messages
+            let filteredMessages = allMessages.filter { !$0.contenu.contains("⏳ Génération en cours...") }
+            let recentMessages = Array(filteredMessages.suffix(20))
+
+            DebugLogger.shared.log(
+                "🚀 Appel API avec \(recentMessages.count) messages (OCR: \(usedOCR), Vision: \(shouldUseVision))",
+                category: "OCR"
+            )
+
+            let response = try await OpenAIService.sendMessage(
+                messages: recentMessages,
+                systemPrompt: systemPrompt
+            )
+
+            // Mettre à jour avec la réponse
+            if let messageIndex = conversations[conversationIndex].messages.firstIndex(where: { $0.id == typingMessageID }) {
+                conversations[conversationIndex].messages[messageIndex] = Message(
+                    id: typingMessageID,
+                    contenu: response,
+                    isUser: false
+                )
+                conversations[conversationIndex].lastModified = Date()
+                storage.save(conversations[conversationIndex])
+            }
+            isGenerating = false
+            DebugLogger.shared.log("✅ Réponse reçue", category: "OCR")
+
+        } catch let error as OpenAIError {
+            let errorMessage: String
+            switch error {
+            case .noAPIKey:
+                errorMessage = "❌ Aucune clé API configurée."
+            case .invalidAPIKey:
+                errorMessage = "❌ Clé API invalide."
+            case .networkError(let e):
+                errorMessage = "❌ Erreur réseau : \(e.localizedDescription)"
+            case .rateLimitExceeded:
+                errorMessage = "❌ Limite de requêtes atteinte."
+            case .serverError(let code):
+                errorMessage = "❌ Erreur serveur (\(code))."
+            case .invalidResponse, .emptyResponse:
+                errorMessage = "❌ Réponse invalide."
+            }
+
+            if let messageIndex = conversations[conversationIndex].messages.firstIndex(where: { $0.id == typingMessageID }) {
+                conversations[conversationIndex].messages[messageIndex] = Message(
+                    id: typingMessageID,
+                    contenu: errorMessage,
+                    isUser: false
+                )
+            }
+            isGenerating = false
+            DebugLogger.shared.logError("❌ Erreur API: \(error.localizedDescription)")
+
+        } catch {
+            let errorMessage = "❌ Erreur inattendue : \(error.localizedDescription)"
+            if let messageIndex = conversations[conversationIndex].messages.firstIndex(where: { $0.id == typingMessageID }) {
+                conversations[conversationIndex].messages[messageIndex] = Message(
+                    id: typingMessageID,
+                    contenu: errorMessage,
+                    isUser: false
+                )
+            }
+            isGenerating = false
+            DebugLogger.shared.logError("❌ Erreur: \(error.localizedDescription)")
+        }
     }
 }
 

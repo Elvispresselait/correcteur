@@ -16,13 +16,37 @@ struct Message: Identifiable, Equatable, Codable {
     let images: [NSImage]? // Pour l'affichage UI (non persisté)
     let imageData: [ImageData]? // Pour l'envoi API et persistance (base64 compressé)
 
-    init(id: UUID = UUID(), contenu: String, isUser: Bool, timestamp: Date = Date(), images: [NSImage]? = nil, imageData: [ImageData]? = nil) {
+    // MARK: - OCR Metadata
+
+    /// Texte extrait par OCR (si mode OCR utilisé)
+    let ocrText: String?
+
+    /// Confiance de l'OCR (0.0 - 1.0)
+    let ocrConfidence: Float?
+
+    /// Indique si le message a utilisé l'OCR (vs Vision)
+    let usedOCR: Bool
+
+    init(
+        id: UUID = UUID(),
+        contenu: String,
+        isUser: Bool,
+        timestamp: Date = Date(),
+        images: [NSImage]? = nil,
+        imageData: [ImageData]? = nil,
+        ocrText: String? = nil,
+        ocrConfidence: Float? = nil,
+        usedOCR: Bool = false
+    ) {
         self.id = id
         self.contenu = contenu
         self.isUser = isUser
         self.timestamp = timestamp
         self.images = images
         self.imageData = imageData
+        self.ocrText = ocrText
+        self.ocrConfidence = ocrConfidence
+        self.usedOCR = usedOCR
     }
 
     // MARK: - Codable
@@ -33,6 +57,9 @@ struct Message: Identifiable, Equatable, Codable {
         case isUser
         case timestamp
         case imageData
+        case ocrText
+        case ocrConfidence
+        case usedOCR
         // Note: images (NSImage) n'est pas persisté car il peut être recréé depuis imageData
     }
 
@@ -44,6 +71,11 @@ struct Message: Identifiable, Equatable, Codable {
         isUser = try container.decode(Bool.self, forKey: .isUser)
         timestamp = try container.decode(Date.self, forKey: .timestamp)
         imageData = try container.decodeIfPresent([ImageData].self, forKey: .imageData)
+
+        // Décoder les métadonnées OCR
+        ocrText = try container.decodeIfPresent(String.self, forKey: .ocrText)
+        ocrConfidence = try container.decodeIfPresent(Float.self, forKey: .ocrConfidence)
+        usedOCR = try container.decodeIfPresent(Bool.self, forKey: .usedOCR) ?? false
 
         // Recréer les NSImage depuis imageData (si présent)
         if let imgData = imageData, !imgData.isEmpty {
@@ -70,6 +102,11 @@ struct Message: Identifiable, Equatable, Codable {
         try container.encode(isUser, forKey: .isUser)
         try container.encode(timestamp, forKey: .timestamp)
         try container.encodeIfPresent(imageData, forKey: .imageData)
+
+        // Encoder les métadonnées OCR
+        try container.encodeIfPresent(ocrText, forKey: .ocrText)
+        try container.encodeIfPresent(ocrConfidence, forKey: .ocrConfidence)
+        try container.encode(usedOCR, forKey: .usedOCR)
     }
 
     // MARK: - Equatable
@@ -78,7 +115,10 @@ struct Message: Identifiable, Equatable, Codable {
         guard lhs.id == rhs.id,
               lhs.contenu == rhs.contenu,
               lhs.isUser == rhs.isUser,
-              lhs.timestamp == rhs.timestamp else {
+              lhs.timestamp == rhs.timestamp,
+              lhs.usedOCR == rhs.usedOCR,
+              lhs.ocrText == rhs.ocrText,
+              lhs.ocrConfidence == rhs.ocrConfidence else {
             return false
         }
 

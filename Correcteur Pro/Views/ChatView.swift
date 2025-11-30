@@ -1213,6 +1213,40 @@ struct MessageBubble: View {
                 // Images
                 if let images = message.images, !images.isEmpty {
                     MessageImagesView(images: images, onImageTap: onImageTap)
+
+                    // Indicateur OCR (si applicable)
+                    if message.usedOCR, let confidence = message.ocrConfidence {
+                        HStack(spacing: 4) {
+                            Image(systemName: "text.viewfinder")
+                                .font(.caption2)
+                            Text("OCR \(Int(confidence * 100))%")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundColor(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(Color.green.opacity(0.15))
+                        )
+                    } else if message.imageData != nil {
+                        // Mode Vision utilisé (fallback ou forcé)
+                        HStack(spacing: 4) {
+                            Image(systemName: "eye")
+                                .font(.caption2)
+                            Text("Vision")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(Color.blue.opacity(0.15))
+                        )
+                    }
                 }
 
                 // Texte

@@ -116,6 +116,59 @@ struct CapturePreferencesView: View {
                     }
             }
 
+            // SECTION : Mode d'analyse (OCR)
+            Section("Mode d'analyse") {
+                Picker("Traitement des images", selection: $prefsManager.preferences.imageProcessingMode) {
+                    ForEach(ImageProcessingMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .onChange(of: prefsManager.preferences.imageProcessingMode) { _, _ in
+                    prefsManager.save()
+                }
+
+                Text(prefsManager.preferences.imageProcessingMode.description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                // Options OCR (visibles seulement si mode Auto ou OCR)
+                if prefsManager.preferences.imageProcessingMode != .vision {
+                    Divider()
+
+                    Toggle("Fallback automatique vers Vision", isOn: $prefsManager.preferences.autoFallbackToVision)
+                        .onChange(of: prefsManager.preferences.autoFallbackToVision) { _, _ in
+                            prefsManager.save()
+                        }
+
+                    Text("Si l'OCR échoue ou si la confiance est < \(Int(prefsManager.preferences.ocrConfidenceThreshold * 100))%, l'image sera envoyée à GPT-4 Vision.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    // Slider pour le seuil de confiance (seulement en mode Auto)
+                    if prefsManager.preferences.imageProcessingMode == .auto {
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Seuil de confiance OCR : \(Int(prefsManager.preferences.ocrConfidenceThreshold * 100))%")
+                                .font(.subheadline)
+
+                            Slider(
+                                value: $prefsManager.preferences.ocrConfidenceThreshold,
+                                in: 0.5...1.0,
+                                step: 0.05
+                            )
+                            .onChange(of: prefsManager.preferences.ocrConfidenceThreshold) { _, _ in
+                                prefsManager.save()
+                            }
+
+                            Text("En dessous de ce seuil, l'image sera envoyée à la place du texte extrait.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+
             // SECTION : Raccourcis clavier
             Section("Raccourcis clavier") {
                 VStack(alignment: .leading, spacing: 12) {

@@ -39,6 +39,17 @@ struct AppPreferences: Codable {
     var maxTokens: Int = 4096
     var showTokenUsage: Bool = true
 
+    // MARK: - OCR
+
+    /// Mode de traitement des images (Vision, OCR, ou Auto)
+    var imageProcessingMode: ImageProcessingMode = .auto
+
+    /// Seuil de confiance OCR (0.0 - 1.0) pour le mode Auto
+    var ocrConfidenceThreshold: Float = 0.9
+
+    /// Active le fallback automatique vers Vision si OCR échoue
+    var autoFallbackToVision: Bool = true
+
     // MARK: - CONVERSATIONS
 
     var historyMessageCount: Int = 20
@@ -210,6 +221,28 @@ enum AppTheme: String, Codable, CaseIterable {
 enum WindowPosition: String, Codable, CaseIterable {
     case center = "Centre"
     case lastPosition = "Dernière position"
+}
+
+// MARK: - Image Processing Mode (OCR)
+
+/// Mode de traitement des images pour l'envoi à l'API
+enum ImageProcessingMode: String, Codable, CaseIterable {
+    case vision = "Vision (Image)"
+    case ocr = "OCR (Texte)"
+    case auto = "Auto (OCR > 90%)"
+
+    var displayName: String { rawValue }
+
+    var description: String {
+        switch self {
+        case .vision:
+            return "Envoie toujours l'image à GPT-4 Vision"
+        case .ocr:
+            return "Extrait le texte via OCR et l'envoie comme texte"
+        case .auto:
+            return "OCR si confiance > 90%, sinon Vision"
+        }
+    }
 }
 
 enum OpenAIModel: String, Codable, CaseIterable {
