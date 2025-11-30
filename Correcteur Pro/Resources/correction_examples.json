@@ -1,0 +1,191 @@
+{
+  "version": "1.0",
+  "description": "Exemples de corrections pour le few-shot learning du correcteur orthographique",
+  "rules": [
+    {
+      "id": "rule_1",
+      "name": "Suppression de lettre(s)",
+      "description": "Quand il faut juste supprimer des lettres dans un mot",
+      "format": "**mot_corrigé**~~lettres_supprimées~~"
+    },
+    {
+      "id": "rule_2",
+      "name": "Remplacement de mot",
+      "description": "Quand le mot entier doit être remplacé",
+      "format": "~~ancien_mot~~ **nouveau_mot**"
+    },
+    {
+      "id": "rule_3",
+      "name": "Ajout de mot",
+      "description": "Quand il manque un mot",
+      "format": "**mot_ajouté**"
+    },
+    {
+      "id": "rule_4",
+      "name": "Suppression de mot",
+      "description": "Quand un mot est en trop",
+      "format": "~~mot_à_supprimer~~"
+    }
+  ],
+  "examples": [
+    {
+      "category": "Accord pluriel → singulier",
+      "input": "Si les Parties le jugent utiles",
+      "output": "❌ Si les Parties le jugent **utile**~~s~~",
+      "explanation": "Utile s'accorde avec 'le' (COD singulier), pas avec 'Parties'"
+    },
+    {
+      "category": "Accord singulier → pluriel",
+      "input": "Les document sont prêts",
+      "output": "❌ Les **documents**~~document~~ sont prêts",
+      "explanation": "Document doit être au pluriel après 'Les'"
+    },
+    {
+      "category": "Remplacement de mot (genre)",
+      "input": "un récapitulation des travaux",
+      "output": "❌ ~~un~~ **une** récapitulation des travaux",
+      "explanation": "Récapitulation est féminin"
+    },
+    {
+      "category": "Remplacement de mot (vocabulaire)",
+      "input": "un récapitulation des Créations",
+      "output": "❌ ~~un récapitulation~~ **une récapitulatif** des Créations",
+      "explanation": "Le mot correct est 'récapitulatif' (masculin)"
+    },
+    {
+      "category": "Conjugaison infinitif",
+      "input": "Chacune des Parties s'engage à prêté son concours",
+      "output": "❌ Chacune des Parties s'engage à ~~prêté~~ **prêter** son concours",
+      "explanation": "Après 'à', on utilise l'infinitif"
+    },
+    {
+      "category": "Conjugaison participe passé",
+      "input": "Les documents ont été signer hier",
+      "output": "❌ Les documents ont été ~~signer~~ **signés** hier",
+      "explanation": "Participe passé avec 'être' s'accorde avec le sujet"
+    },
+    {
+      "category": "Accent oublié",
+      "input": "Le préavis sera effectue dans les délais",
+      "output": "❌ Le préavis sera ~~effectue~~ **effectué** dans les délais",
+      "explanation": "Participe passé avec accent"
+    },
+    {
+      "category": "Accent en trop",
+      "input": "Il faut qué nous partions",
+      "output": "❌ Il faut ~~qué~~ **que** nous partions",
+      "explanation": "Que ne prend pas d'accent"
+    },
+    {
+      "category": "Doublement de consonne",
+      "input": "L'appelation d'origine contrôlée",
+      "output": "❌ L'~~appelation~~ **appellation** d'origine contrôlée",
+      "explanation": "Appellation prend deux 'l'"
+    },
+    {
+      "category": "Consonne en trop",
+      "input": "Le developppement du projet",
+      "output": "❌ Le ~~developppement~~ **développement** du projet",
+      "explanation": "Développement avec deux 'p' seulement"
+    },
+    {
+      "category": "Mot manquant (article)",
+      "input": "Je vais maison demain",
+      "output": "❌ Je vais **à la** maison demain",
+      "explanation": "Il manque la préposition et l'article"
+    },
+    {
+      "category": "Mot manquant (préposition)",
+      "input": "Il s'engage respecter les délais",
+      "output": "❌ Il s'engage **à** respecter les délais",
+      "explanation": "S'engager à + infinitif"
+    },
+    {
+      "category": "Mot en trop",
+      "input": "Il faut que que nous partions",
+      "output": "❌ Il faut ~~que~~ que nous partions",
+      "explanation": "Répétition de 'que'"
+    },
+    {
+      "category": "Homophone a/à",
+      "input": "Il a été a Paris",
+      "output": "❌ Il a été ~~a~~ **à** Paris",
+      "explanation": "À (préposition) vs a (verbe avoir)"
+    },
+    {
+      "category": "Homophone et/est",
+      "input": "Le contrat et signé",
+      "output": "❌ Le contrat ~~et~~ **est** signé",
+      "explanation": "Est (verbe être) vs et (conjonction)"
+    },
+    {
+      "category": "Homophone ou/où",
+      "input": "Le lieu ou se tiendra la réunion",
+      "output": "❌ Le lieu ~~ou~~ **où** se tiendra la réunion",
+      "explanation": "Où (lieu) vs ou (alternative)"
+    },
+    {
+      "category": "Homophone ces/ses/c'est",
+      "input": "Ces le moment de partir",
+      "output": "❌ ~~Ces~~ **C'est** le moment de partir",
+      "explanation": "C'est = cela est"
+    },
+    {
+      "category": "Accord adjectif",
+      "input": "Les clauses contractuel sont valides",
+      "output": "❌ Les clauses ~~contractuel~~ **contractuelles** sont valides",
+      "explanation": "Accord féminin pluriel avec 'clauses'"
+    },
+    {
+      "category": "Majuscule manquante",
+      "input": "la société microsoft a signé",
+      "output": "❌ La société ~~microsoft~~ **Microsoft** a signé",
+      "explanation": "Nom propre = majuscule"
+    },
+    {
+      "category": "Tiret manquant",
+      "input": "Le peut être de la situation",
+      "output": "❌ Le ~~peut être~~ **peut-être** de la situation",
+      "explanation": "Peut-être (adverbe) prend un tiret"
+    },
+    {
+      "category": "Paragraphe sans faute",
+      "input": "Le présent contrat est conclu pour une durée indéterminée.",
+      "output": "✅ Le présent contrat est conclu pour une durée indéterminée.",
+      "explanation": "Aucune correction nécessaire"
+    },
+    {
+      "category": "Paragraphe sans faute (juridique)",
+      "input": "Les Parties conviennent de se soumettre à la juridiction des tribunaux de Paris.",
+      "output": "✅ Les Parties conviennent de se soumettre à la juridiction des tribunaux de Paris.",
+      "explanation": "Aucune correction nécessaire"
+    }
+  ],
+  "full_text_examples": [
+    {
+      "description": "Texte juridique avec plusieurs fautes",
+      "input": "Si les Parties le jugent utiles, un récapitulation des Créations pourra également être établi par l'une et/ou l'autre des Parties. Chacune des Parties s'engage à prêté son concours à l'établissement de ce récapitulatif en cas de besoin.",
+      "output": "❌ Si les Parties le jugent **utile**~~s~~, ~~un récapitulation~~ **une récapitulatif** des Créations pourra également être établi par l'une et/ou l'autre des Parties. Chacune des Parties s'engage à ~~prêté~~ **prêter** son concours à l'établissement de ce récapitulatif en cas de besoin."
+    },
+    {
+      "description": "Texte avec une seule faute",
+      "input": "Le contrat sera signer dans les plus brefs délais.\n\nLes deux parties s'engagent à respecter leurs obligations.",
+      "output": "❌ Le contrat sera ~~signer~~ **signé** dans les plus brefs délais.\n\n✅ Les deux parties s'engagent à respecter leurs obligations."
+    },
+    {
+      "description": "Texte sans faute",
+      "input": "Le présent accord est conclu entre les soussignés.\n\nIl entrera en vigueur à la date de sa signature.",
+      "output": "✅ Le présent accord est conclu entre les soussignés.\n\n✅ Il entrera en vigueur à la date de sa signature."
+    },
+    {
+      "description": "Texte avec fautes d'accords multiples",
+      "input": "Les document contractuel ont été transmise aux parties concerné.",
+      "output": "❌ Les ~~document~~ **documents** ~~contractuel~~ **contractuels** ont été ~~transmise~~ **transmis** aux parties ~~concerné~~ **concernées**."
+    },
+    {
+      "description": "Texte avec homophones",
+      "input": "Il a été a la réunion ou il et resté deux heures. Ces vraiment important.",
+      "output": "❌ Il a été ~~a~~ **à** la réunion ~~ou~~ **où** il ~~et~~ **est** resté deux heures. ~~Ces~~ **C'est** vraiment important."
+    }
+  ]
+}

@@ -191,20 +191,10 @@ struct ConversationsPreferencesView: View {
         }
     }
 
-    /// Réinitialise le prompt système à la valeur par défaut
+    /// Réinitialise le prompt système à la valeur par défaut (avec exemples intégrés)
     private func resetToDefaultPrompt() {
-        let defaultPrompt = """
-Je veux que tu ne regardes que la partie surlignée.
-Tu me la re-rediges complètement en respectant les retours à la ligne.
-
-Ensuite pour chaque faute, tu me rayes le mot entier où il y a la faute, ou les mots entiers où il y a les fautes.
-Tu rajoutes un espace devant avec et tu mets en gras et soulignés les mots que tu rajoutes pour corriger.
-
-Ensuite, devant chaque paragraphe que tu as modifié, je veux que tu rajoutes une croix rouge (❌).
-Et pour les autres paragraphes qui restent, je veux que tu rajoutes une croix verte (✅) devant chaque paragraphe.
-"""
-        editedPrompt = defaultPrompt
-        prefsManager.preferences.systemPrompt = defaultPrompt
+        editedPrompt = AppPreferences.defaultPromptCorrecteur
+        prefsManager.preferences.systemPrompt = AppPreferences.defaultPromptCorrecteur
         prefsManager.save()
     }
 }
