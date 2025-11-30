@@ -63,6 +63,28 @@ Flow:
 
 **TCC Permission**: App requires Screen Recording permission (bundle ID: `Hadrien.Correcteur-Pro`)
 
+### TCC Permission Issues (Important!)
+
+When the app is rebuilt, macOS may invalidate the screen recording permission because the app signature changes. This causes the permission dialog to appear repeatedly.
+
+**Symptoms:**
+- Dialog "Correcteur Pro souhaiterait enregistrer l'écran" appears at every capture
+- Screen capture fails even though permission was granted before
+
+**Solution:**
+```bash
+# 1. Reset TCC cache for the app
+tccutil reset ScreenCapture Hadrien.Correcteur-Pro
+
+# 2. Relaunch the app
+pkill -f "Correcteur Pro"; open "/Applications/Correcteur Pro.app"
+
+# 3. Grant permission once when the dialog appears
+# 4. Relaunch the app after granting permission (required by macOS)
+```
+
+**Note:** This is a development issue, not a bug. Production apps signed with a stable certificate don't have this problem.
+
 ## Build & Deploy
 
 ```bash

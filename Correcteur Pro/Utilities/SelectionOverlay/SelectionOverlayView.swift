@@ -123,15 +123,19 @@ struct SelectionOverlayView: View {
                     }
 
                     // Convertir les coordonnées SwiftUI vers NSRect (origine en bas à gauche)
-                    let screenHeight = NSScreen.main?.frame.height ?? 0
+                    // La fenêtre overlay couvre tous les écrans (frame combiné)
+                    let combinedFrame = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
+
+                    // SwiftUI: origine en haut à gauche du frame combiné
+                    // NSRect: origine en bas à gauche du système de coordonnées global
                     let nsRect = NSRect(
-                        x: rect.minX,
-                        y: screenHeight - rect.maxY, // Inverser Y
+                        x: combinedFrame.origin.x + rect.minX,
+                        y: combinedFrame.maxY - rect.maxY,
                         width: rect.width,
                         height: rect.height
                     )
 
-                    print("✅ [SelectionOverlay] Sélection terminée: \(nsRect)")
+                    print("✅ [SelectionOverlay] Sélection terminée: \(nsRect) (combined: \(combinedFrame))")
                     onSelectionComplete(nsRect)
                 }
         )

@@ -216,6 +216,54 @@ DebugLogger.shared.minLogLevel = .warning  // Ignorer debug/info
 
 ## Troubleshooting
 
+### 🔐 Permission TCC (Screen Recording)
+
+Le problème le plus fréquent lors du développement est le dialogue de permission qui réapparaît à chaque capture d'écran.
+
+**Symptômes :**
+- Dialogue "Correcteur Pro souhaiterait enregistrer l'écran" à chaque capture
+- Capture échoue même si la permission a été accordée avant
+- Erreur `-3801` dans les logs (permission refusée)
+
+**Cause :**
+Quand l'app est rebuildée, sa signature change. macOS invalide alors la permission TCC car il considère que c'est une "nouvelle" app.
+
+**Solution complète :**
+
+```bash
+# Étape 1 : Réinitialiser le cache TCC
+tccutil reset ScreenCapture Hadrien.Correcteur-Pro
+
+# Étape 2 : Fermer et relancer l'app
+pkill -f "Correcteur Pro"
+open "/Applications/Correcteur Pro.app"
+
+# Étape 3 : Accorder la permission quand le dialogue apparaît
+# Cliquer sur "Ouvrir Réglages Système..." puis activer Correcteur Pro
+
+# Étape 4 : IMPORTANT - Relancer l'app après avoir accordé la permission
+# macOS exige un restart pour appliquer les nouvelles permissions
+pkill -f "Correcteur Pro"
+open "/Applications/Correcteur Pro.app"
+```
+
+**Vérifier les permissions existantes :**
+```bash
+# Voir toutes les entrées TCC pour ScreenCapture
+sqlite3 ~/Library/Application\ Support/com.apple.TCC/TCC.db \
+  "SELECT client, auth_value FROM access WHERE service='kTCCServiceScreenCapture'"
+```
+
+**Quand ce problème survient :**
+- Après chaque rebuild de l'app
+- Après mise à jour de Xcode
+- Après changement de certificat de signature
+- Après `rm -rf DerivedData`
+
+**Note :** Ce problème n'existe pas en production car l'app est signée avec un certificat stable.
+
+---
+
 ### Les logs ne s'affichent pas ?
 
 1. **Vérifier que la console est activée** : Icône terminal dans le header
@@ -289,5 +337,5 @@ DebugLogger.shared.logError("Failed to \(action): \(error.localizedDescription)"
 ---
 
 **Créé le** : 2025-11-29
-**Dernière mise à jour** : 2025-11-29
-**Version** : 1.0
+**Dernière mise à jour** : 2025-11-30
+**Version** : 1.1 (ajout section TCC)
