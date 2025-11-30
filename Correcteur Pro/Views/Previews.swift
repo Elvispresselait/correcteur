@@ -190,14 +190,14 @@ struct HeaderView_Previews: PreviewProvider {
     }
 }
 
-// MARK: - Preview de l'état vide
+// MARK: - Preview du message d'accueil
 
-struct EmptyStateView_Previews: PreviewProvider {
+struct WelcomeView_Previews: PreviewProvider {
     static var previews: some View {
-        EmptyStateView()
+        WelcomeView()
             .frame(width: 400, height: 500)
-            .background(Color.white)
-            .previewDisplayName("📭 État vide")
+            .background(Color(hex: "020815"))
+            .previewDisplayName("👋 Message d'accueil")
     }
 }
 

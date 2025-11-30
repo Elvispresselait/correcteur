@@ -12,7 +12,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @StateObject private var debugLogger = DebugLogger.shared
-    @State private var isSidebarVisible: Bool = true
+    @State private var isSidebarVisible: Bool = false
     @State private var inputText: String = ""
     @State private var isPromptEditorOpen: Bool = false
 
@@ -94,6 +94,10 @@ struct ContentView: View {
         }
         .onAppear {
             DebugLogger.shared.log("📱 ContentView apparue", category: "System")
+
+            // Vérifier inactivité et créer nouvelle conversation si nécessaire
+            viewModel.checkInactivityAndResetIfNeeded()
+
             // Vérifier s'il y a une image en attente (capturée avant que la vue soit prête)
             checkForPendingImage()
         }

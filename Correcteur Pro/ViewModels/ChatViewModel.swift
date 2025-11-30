@@ -186,7 +186,48 @@ final class ChatViewModel: ObservableObject {
         // Auto-save
         storage.save(newConversation)
     }
-    
+
+    // MARK: - Inactivity Check
+
+    /// Vérifie si la conversation actuelle est inactive et crée une nouvelle si nécessaire
+    /// - Returns: true si une nouvelle conversation a été créée
+    @discardableResult
+    func checkInactivityAndResetIfNeeded() -> Bool {
+        let prefs = PreferencesManager.shared.preferences
+
+        // Désactivé dans les préférences ?
+        guard prefs.autoNewConversationOnInactivity else {
+            DebugLogger.shared.log("⏸️ Reset après inactivité désactivé", category: "Inactivity")
+            return false
+        }
+
+        // Pas de conversation sélectionnée → en créer une
+        guard let currentConversation = selectedConversation else {
+            createNewConversation()
+            DebugLogger.shared.log("🆕 Nouvelle conversation créée (aucune sélectionnée)", category: "Inactivity")
+            return true
+        }
+
+        // Vérifier l'inactivité
+        let timeoutSeconds = TimeInterval(prefs.inactivityTimeoutMinutes * 60)
+        let timeSinceLastActivity = Date().timeIntervalSince(currentConversation.lastModified)
+
+        if timeSinceLastActivity > timeoutSeconds {
+            createNewConversation()
+            DebugLogger.shared.log(
+                "🆕 Nouvelle conversation créée (inactivité: \(Int(timeSinceLastActivity / 60)) min > \(prefs.inactivityTimeoutMinutes) min)",
+                category: "Inactivity"
+            )
+            return true
+        }
+
+        DebugLogger.shared.log(
+            "✅ Conversation conservée (inactivité: \(Int(timeSinceLastActivity / 60)) min < \(prefs.inactivityTimeoutMinutes) min)",
+            category: "Inactivity"
+        )
+        return false
+    }
+
     func selectConversation(_ conversation: Conversation) {
         selectedConversationID = conversation.id
     }

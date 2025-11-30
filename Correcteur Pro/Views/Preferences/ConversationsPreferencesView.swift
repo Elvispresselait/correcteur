@@ -87,6 +87,31 @@ struct ConversationsPreferencesView: View {
                     .foregroundColor(.secondary)
             }
 
+            // SECTION : Inactivité
+            Section("Nouvelle conversation automatique") {
+                Toggle("Activer après inactivité", isOn: $prefsManager.preferences.autoNewConversationOnInactivity)
+                    .onChange(of: prefsManager.preferences.autoNewConversationOnInactivity) { _, _ in
+                        prefsManager.save()
+                    }
+
+                if prefsManager.preferences.autoNewConversationOnInactivity {
+                    Picker("Délai d'inactivité", selection: $prefsManager.preferences.inactivityTimeoutMinutes) {
+                        Text("5 minutes").tag(5)
+                        Text("10 minutes").tag(10)
+                        Text("15 minutes").tag(15)
+                        Text("30 minutes").tag(30)
+                        Text("1 heure").tag(60)
+                    }
+                    .onChange(of: prefsManager.preferences.inactivityTimeoutMinutes) { _, _ in
+                        prefsManager.save()
+                    }
+                }
+
+                Text("Une nouvelle conversation sera créée automatiquement au lancement de l'app si vous n'avez pas envoyé de message depuis ce délai.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
             // SECTION : Sauvegarde
             Section("Sauvegarde") {
                 HStack {

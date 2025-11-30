@@ -55,6 +55,14 @@ struct AppPreferences: Codable {
     var historyMessageCount: Int = 20
     var exportFolder: String?
 
+    // MARK: - INACTIVITÉ
+
+    /// Activer le reset automatique après inactivité
+    var autoNewConversationOnInactivity: Bool = true
+
+    /// Délai d'inactivité en minutes avant reset (défaut: 10)
+    var inactivityTimeoutMinutes: Int = 10
+
     // MARK: - PROMPTS SYSTÈME (un pour chaque type)
 
     /// Prompt pour le correcteur orthographique

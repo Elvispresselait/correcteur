@@ -53,11 +53,15 @@ struct ChatView: View {
                 }
 
                 if let conversation = viewModel.selectedConversation {
-                    MessagesScrollView(messages: conversation.messages, onImageTap: { image in
-                        previewImage = image
-                    })
+                    if conversation.messages.isEmpty {
+                        WelcomeView()
+                    } else {
+                        MessagesScrollView(messages: conversation.messages, onImageTap: { image in
+                            previewImage = image
+                        })
+                    }
                 } else {
-                    EmptyStateView()
+                    WelcomeView()
                 }
 
                 InputBarView(
@@ -1401,20 +1405,16 @@ struct ImagePreviewOverlay: View {
     }
 }
 
-struct EmptyStateView: View {
+struct WelcomeView: View {
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "message.badge")
-                .font(.system(size: 48))
-                .foregroundColor(Color.white.opacity(0.3))
-            
-            Text("Aucune conversation sélectionnée")
-                .font(.system(size: 14))
-                .foregroundColor(.white.opacity(0.85))
-            
-            Text("Créez un nouveau chat pour commencer")
-                .font(.system(size: 12))
-                .foregroundColor(.white.opacity(0.6))
+        VStack(spacing: 16) {
+            Text("Bonjour Hadrien 👋")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundColor(.white)
+
+            Text("Comment puis-je t'aider aujourd'hui ?")
+                .font(.system(size: 18))
+                .foregroundColor(.white.opacity(0.7))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
