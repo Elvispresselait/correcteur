@@ -63,12 +63,11 @@ struct ChatView: View {
                 InputBarView(
                     inputText: $inputText,
                     pendingImages: $pendingImages,
-                    isGenerating: viewModel.isGenerating, // ÉTAPE 4.2 : Désactiver le bouton pendant la génération
+                    isGenerating: viewModel.isGenerating,
                     onSend: sendMessage,
                     onImageAdded: { showToast(.success("Image ajoutée")) },
                     onImageError: { error in showToast(.error(error.localizedDescription)) },
                     onImageCompressed: { message in
-                        // TEMPS 2 : Afficher toast de compression
                         if message.contains("compressée") {
                             showToast(.success(message))
                         } else {
@@ -98,18 +97,14 @@ struct ChatView: View {
                 }
             }
         }
-        // Observer les images capturées via raccourci clavier
+        // Transfert des images capturées via raccourcis clavier (⌥⇧S, ⌥⇧X)
         .onChange(of: viewModel.capturedImage) { _, newImage in
-            if let image = newImage {
-                // Ajouter l'image aux pendingImages avec animation
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    pendingImages.append(image)
-                }
-                // Afficher toast de confirmation
-                showToast(.success("📸 Image capturée"))
-                // Reset pour permettre la prochaine capture
-                viewModel.capturedImage = nil
+            guard let image = newImage else { return }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                pendingImages.append(image)
             }
+            showToast(.success("📸 Image capturée"))
+            viewModel.capturedImage = nil
         }
         .alert("Renommer la conversation", isPresented: $isRenamingConversation, actions: {
             TextField("Nouveau titre", text: $renameDraft)
@@ -134,10 +129,6 @@ struct ChatView: View {
     
     private func sendMessage() {
         let imagesToSend = pendingImages.isEmpty ? nil : pendingImages
-        
-        // TEMPS 2 : Les images dans pendingImages sont déjà compressées
-        // Plus besoin de vérifier la taille avant envoi
-        
         guard viewModel.sendMessage(inputText, images: imagesToSend) else {
             showToast(.error("Impossible d'envoyer le message"))
             return
@@ -1377,11 +1368,11 @@ struct EmptyStateView: View {
 struct InputBarView: View {
     @Binding var inputText: String
     @Binding var pendingImages: [NSImage]
-    let isGenerating: Bool // ÉTAPE 4.2 : État de génération pour désactiver le bouton
+    let isGenerating: Bool
     let onSend: () -> Void
     let onImageAdded: () -> Void
     let onImageError: (Error) -> Void
-    let onImageCompressed: (String) -> Void // TEMPS 2 : Callback pour notifier la compression
+    let onImageCompressed: (String) -> Void
     
     private let inputBackground = Color.white.opacity(0.08)
     private let borderColor = Color.white.opacity(0.2)
@@ -1442,7 +1433,7 @@ struct InputBarView: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .disabled((inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && pendingImages.isEmpty) || isGenerating) // ÉTAPE 4.2 : Désactiver pendant la génération
+                    .disabled((inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && pendingImages.isEmpty) || isGenerating)
                 }
             }
             .padding(.horizontal, 16)
@@ -1457,17 +1448,13 @@ struct InputBarView: View {
         handleImagePasteResult(result)
     }
     
-    // Traite le résultat du collage d'image avec gestion d'erreurs
-    // TEMPS 1 : Accepter toutes les images sans vérification de taille
-    // TEMPS 2 : Compression automatique après upload
+    /// Traite le résultat du collage d'image avec gestion d'erreurs et compression automatique
     private func handleImagePasteResult(_ result: ClipboardResult) {
-        // Ne bloquer que les erreurs critiques (clipboard vide, format invalide)
-        // Plus de vérification de taille - toutes les images sont acceptées
+        // Bloquer seulement les erreurs critiques (clipboard vide, format invalide)
         if let error = result.error {
-            // Ne bloquer que les erreurs non liées à la taille
             if case .imageTooLarge = error {
-                // TEMPS 1 : Plus de rejet pour taille, on accepte quand même
-                print("ℹ️ [InputBar] Image grande détectée, sera compressée après upload")
+                // Les grandes images sont acceptées et compressées automatiquement
+                print("ℹ️ [InputBar] Image grande détectée, compression automatique")
             } else {
                 // Autres erreurs (vide, format invalide) : bloquer
                 print("❌ [InputBar] Erreur: \(error.localizedDescription)")
@@ -1491,7 +1478,7 @@ struct InputBarView: View {
             print("📊 [InputBar] Taille originale: \(String(format: "%.2f", sizeMB)) MB")
         }
         
-        // TEMPS 2 : Compression automatique après upload
+        // Compression automatique si > 2MB
         let finalImage = compressImageIfNeeded(image, originalSizeMB: originalSizeMB)
         
         // Animation d'ajout avec l'image (compressée ou originale)
@@ -1502,11 +1489,11 @@ struct InputBarView: View {
         onImageAdded()
     }
     
-    /// TEMPS 2 : Compresse l'image si elle est > 2MB
+    /// Compresse l'image si elle dépasse 2MB
     /// - Parameters:
     ///   - image: Image à compresser
-    ///   - originalSizeMB: Taille originale en MB (optionnel, pour les logs)
-    /// - Returns: Image compressée si > 2MB, sinon image originale
+    ///   - originalSizeMB: Taille originale en MB (pour les logs)
+    /// - Returns: Image compressée ou originale si déjà sous le seuil
     private func compressImageIfNeeded(_ image: NSImage, originalSizeMB: Double?) -> NSImage {
         // Vérifier la taille actuelle
         let currentSizeMB = image.sizeInMB() ?? originalSizeMB ?? 0.0
@@ -1567,7 +1554,7 @@ struct InputBarView: View {
     
     private var sendButtonColor: Color {
         let isEmpty = inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && pendingImages.isEmpty
-        if isEmpty || isGenerating { // ÉTAPE 4.2 : Griser pendant la génération
+        if isEmpty || isGenerating {
             return Color.white.opacity(0.18)
         }
         return Color(hex: "4F8CFF")

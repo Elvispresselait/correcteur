@@ -94,19 +94,7 @@ struct ContentView: View {
         }
         .onAppear {
             setupGlobalHotKey()
-
-            // DIAGNOSTIC: Tester le DebugLogger au démarrage
-            print("🔍 [DIAGNOSTIC] onAppear appelé, isEnabled=\(debugLogger.isEnabled), messages.count=\(debugLogger.messages.count)")
-
-            // Forcer l'ajout de logs de test
-            DebugLogger.shared.log("🚀 [System] Application démarrée", category: "System")
-            DebugLogger.shared.log("📋 [System] Console initialisée avec \(debugLogger.messages.count) messages", category: "System")
-
-            // Vérifier après 0.5s
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                print("🔍 [DIAGNOSTIC] Après 0.5s: isEnabled=\(debugLogger.isEnabled), messages.count=\(debugLogger.messages.count)")
-                DebugLogger.shared.log("✅ [System] Test logger après 0.5s - Si tu vois ce message, le logger fonctionne!", category: "System")
-            }
+            DebugLogger.shared.log("🚀 Application démarrée", category: "System")
         }
         .alert("Erreur de capture", isPresented: Binding(
             get: { viewModel.captureError != nil },
@@ -121,17 +109,22 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Global HotKey Setup
+    // MARK: - Screen Capture Setup
 
-    /// Configure les raccourcis globaux pour la capture d'écran
+    /// Configure les raccourcis globaux pour la capture d'écran.
+    ///
+    /// Cette méthode initialise les callbacks pour les raccourcis clavier :
+    /// - `⌥⇧S` : Capture de l'écran principal
+    /// - `⌥⇧X` : Capture d'une zone sélectionnée (overlay interactif)
+    ///
+    /// Les images capturées sont stockées dans `viewModel.capturedImage` puis
+    /// transférées vers `pendingImages` via un `onChange` dans `ChatView`.
     private func setupGlobalHotKey() {
-        // Capture la référence au viewModel pour les closures
         let vm = viewModel
 
-        // Callback pour écran principal
+        // Callback pour écran principal (⌥⇧S)
         GlobalHotKeyManager.shared.onMainDisplayCapture = { [weak vm] in
-            print("📸 [ContentView] Capture d'écran principal demandée")
-            DebugLogger.shared.logCapture("📸 Raccourci capture écran principal activé")
+            DebugLogger.shared.logCapture("📸 Capture écran principal demandée")
 
             Task {
                 do {
@@ -155,16 +148,14 @@ struct ContentView: View {
             }
         }
 
-        // Callback pour tous les écrans
+        // Callback pour tous les écrans (non implémenté)
         GlobalHotKeyManager.shared.onAllDisplaysCapture = {
-            print("⚠️ Capture de tous les écrans pas encore implémentée")
             DebugLogger.shared.logWarning("⚠️ Capture tous écrans non implémentée")
         }
 
-        // Callback pour zone sélectionnée
+        // Callback pour zone sélectionnée (⌥⇧X)
         GlobalHotKeyManager.shared.onSelectionCapture = { [weak vm] in
-            print("📸 [ContentView] Capture de zone demandée")
-            DebugLogger.shared.logCapture("📸 Raccourci capture zone activé")
+            DebugLogger.shared.logCapture("📸 Capture zone demandée")
 
             SelectionCaptureService.showSelectionOverlay { image in
                 if let image = image {

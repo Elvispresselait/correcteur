@@ -102,7 +102,7 @@ ls -la "/Applications/Correcteur Pro.app"
 ---
 
 ## 🚀 Fonctionnalités en cours de développement
-- Debugging prise de photo
+- ✅ ~~Debugging prise de photo~~ → Corrigé (raccourcis ⌥⇧S et ⌥⇧X fonctionnels)
 
 ## 🕚 Fonctionnalités à implémenter
 
@@ -447,6 +447,7 @@ func queryLegalDatabase(domain: String, query: String) -> [Reference] {
 - Effet verre dépoli avec transparence
 - Prompt correcteur amélioré (anti-faux positifs)
 - Éditeur de prompt responsive
+- **Capture d'écran via raccourcis clavier** (⌥⇧S et ⌥⇧X) - corrigé et fonctionnel
 
 ### Métriques
 - **~40 fichiers Swift**

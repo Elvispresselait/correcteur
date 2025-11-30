@@ -44,12 +44,19 @@ final class ChatViewModel: ObservableObject {
     @Published var selectedConversationID: UUID?
     @Published var promptType: SystemPromptType = .correcteur
     @Published var customPrompt: String = ""
-    @Published var isGenerating: Bool = false // État de chargement pour l'API
+    /// État de chargement pendant l'appel API
+    @Published var isGenerating: Bool = false
 
-    /// Image capturée via raccourci clavier (à transférer vers pendingImages)
+    // MARK: - Screen Capture Properties
+
+    /// Image capturée via raccourci clavier global.
+    /// Cette propriété est définie par ContentView lors d'une capture réussie,
+    /// puis observée par ChatView qui transfère l'image vers `pendingImages`.
+    /// Après transfert, elle est remise à nil pour permettre la prochaine capture.
     @Published var capturedImage: NSImage? = nil
 
-    /// Erreur de capture à afficher
+    /// Message d'erreur de capture à afficher dans une alerte.
+    /// Utilisé pour informer l'utilisateur des problèmes de permission TCC.
     @Published var captureError: String? = nil
 
     // Service de persistance

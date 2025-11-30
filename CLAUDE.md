@@ -38,10 +38,30 @@ Correcteur Pro/
 
 ## Recent Features (v1.1)
 
-1. **Frosted glass effect** - Window transparency with blur (`VisualEffectBlur`)
+1. **Frosted glass effect** - Window transparency with blur (`VisualEffects.swift`)
 2. **Prompt archiving** - Archive/restore custom prompts with 90-day auto-delete
 3. **Anti-false-positive prompt** - Few-shot learning to prevent incorrect corrections
 4. **Responsive prompt editor** - Column mode (wide) and inline mode (compact)
+5. **Screen capture via keyboard shortcuts**:
+   - `⌥⇧S` (Option+Shift+S) - Capture main screen
+   - `⌥⇧X` (Option+Shift+X) - Capture selected zone with interactive overlay
+   - Captured images are automatically added to pending images in chat
+
+## Screen Capture Architecture
+
+The screen capture system uses macOS ScreenCaptureKit:
+
+- **GlobalHotKeyManager** (`Utilities/GlobalHotKeyManager.swift`) - Registers global hotkeys via Carbon Events API
+- **ScreenCaptureService** (`Utilities/ScreenCaptureService.swift`) - Captures screens using SCScreenshotManager
+- **SelectionCaptureService** (`Utilities/SelectionOverlay/`) - Interactive selection overlay
+
+Flow:
+1. User presses hotkey → `GlobalHotKeyManager` triggers callback
+2. `ContentView.setupGlobalHotKey()` calls `ScreenCaptureService.captureMainScreen()`
+3. Captured image is stored in `ChatViewModel.capturedImage`
+4. `ChatView.onChange(of: viewModel.capturedImage)` transfers it to `pendingImages`
+
+**TCC Permission**: App requires Screen Recording permission (bundle ID: `Hadrien.Correcteur-Pro`)
 
 ## Build & Deploy
 
@@ -69,6 +89,7 @@ No automated tests yet. Manual testing via:
 1. Build and run in Xcode
 2. Test with sample images containing text
 3. Verify corrections display correctly
+4. Test screen capture shortcuts (⌥⇧S, ⌥⇧X) - requires TCC permission
 
 ## Common Tasks
 
@@ -76,3 +97,4 @@ No automated tests yet. Manual testing via:
 - **Modify prompt**: Edit `AppPreferences.defaultPromptCorrecteur` or relevant prompt property
 - **Change UI colors**: Most gradients defined in view files (ContentView, ChatView, SidebarView)
 - **Debug issues**: Enable debug console via terminal icon in header
+- **Fix TCC permission**: Run `tccutil reset ScreenCapture Hadrien.Correcteur-Pro` then relaunch app
