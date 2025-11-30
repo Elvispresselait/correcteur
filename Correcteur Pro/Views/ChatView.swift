@@ -20,6 +20,7 @@ struct ChatView: View {
     @State private var renameDraft = ""
     @State private var pendingImages: [NSImage] = []
     @State private var toast: ToastMessage?
+    @State private var previewImage: NSImage? = nil
     
     private let chatGradient = LinearGradient(
         colors: [
@@ -32,52 +33,63 @@ struct ChatView: View {
     )
     
     var body: some View {
-        VStack(spacing: 0) {
-            HeaderView(
-                title: viewModel.selectedConversation?.titre ?? "Aucune conversation",
-                isSidebarVisible: $isSidebarVisible,
-                canRename: viewModel.selectedConversation != nil,
-                onRename: presentRenameDialog,
-                viewModel: viewModel,
-                isPromptEditorOpen: $isPromptEditorOpen,
-                isCompactMode: !isColumnMode
-            )
+        ZStack {
+            VStack(spacing: 0) {
+                HeaderView(
+                    title: viewModel.selectedConversation?.titre ?? "Aucune conversation",
+                    isSidebarVisible: $isSidebarVisible,
+                    canRename: viewModel.selectedConversation != nil,
+                    onRename: presentRenameDialog,
+                    viewModel: viewModel,
+                    isPromptEditorOpen: $isPromptEditorOpen,
+                    isCompactMode: !isColumnMode
+                )
 
-            // Éditeur de prompt inline (mode compact uniquement)
-            // En mode colonne (large), l'éditeur s'affiche à droite via PromptEditorColumn
-            if isPromptEditorOpen && !isColumnMode {
-                PromptEditorView(viewModel: viewModel, isOpen: $isPromptEditorOpen)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-
-            if let conversation = viewModel.selectedConversation {
-                MessagesScrollView(messages: conversation.messages)
-            } else {
-                EmptyStateView()
-            }
-
-            InputBarView(
-                inputText: $inputText,
-                pendingImages: $pendingImages,
-                isGenerating: viewModel.isGenerating, // ÉTAPE 4.2 : Désactiver le bouton pendant la génération
-                onSend: sendMessage,
-                onImageAdded: { showToast(.success("Image ajoutée")) },
-                onImageError: { error in showToast(.error(error.localizedDescription)) },
-                onImageCompressed: { message in
-                    // TEMPS 2 : Afficher toast de compression
-                    if message.contains("compressée") {
-                        showToast(.success(message))
-                    } else {
-                        showToast(.warning(message))
-                    }
+                // Éditeur de prompt inline (mode compact uniquement)
+                // En mode colonne (large), l'éditeur s'affiche à droite via PromptEditorColumn
+                if isPromptEditorOpen && !isColumnMode {
+                    PromptEditorView(viewModel: viewModel, isOpen: $isPromptEditorOpen)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
+
+                if let conversation = viewModel.selectedConversation {
+                    MessagesScrollView(messages: conversation.messages, onImageTap: { image in
+                        previewImage = image
+                    })
+                } else {
+                    EmptyStateView()
+                }
+
+                InputBarView(
+                    inputText: $inputText,
+                    pendingImages: $pendingImages,
+                    isGenerating: viewModel.isGenerating, // ÉTAPE 4.2 : Désactiver le bouton pendant la génération
+                    onSend: sendMessage,
+                    onImageAdded: { showToast(.success("Image ajoutée")) },
+                    onImageError: { error in showToast(.error(error.localizedDescription)) },
+                    onImageCompressed: { message in
+                        // TEMPS 2 : Afficher toast de compression
+                        if message.contains("compressée") {
+                            showToast(.success(message))
+                        } else {
+                            showToast(.warning(message))
+                        }
+                    }
+                )
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                Rectangle()
+                    .fill(chatGradient)
             )
+
+            // Overlay d'aperçu d'image
+            if let image = previewImage {
+                ImagePreviewOverlay(image: image, onClose: {
+                    previewImage = nil
+                })
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            Rectangle()
-                .fill(chatGradient)
-        )
         .toast($toast)
         .onChange(of: toast) { oldValue, newValue in
             if let toast = newValue {
@@ -1011,13 +1023,14 @@ struct CustomPromptSheet: View {
 
 struct MessagesScrollView: View {
     let messages: [Message]
-    
+    let onImageTap: (NSImage) -> Void
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 16) {
                     ForEach(messages) { message in
-                        MessageBubble(message: message)
+                        MessageBubble(message: message, onImageTap: onImageTap)
                             .id(message.id)
                     }
                 }
@@ -1048,27 +1061,22 @@ struct MessagesScrollView: View {
 
 struct MessageBubble: View {
     let message: Message
+    let onImageTap: (NSImage) -> Void
     private let userBubble = Color(hex: "3E7BFF")
     private let assistantBubble = Color.white.opacity(0.18)
-    
-    @State private var selectedImage: NSImage?
-    @State private var showImageModal = false
-    
+
     var body: some View {
         HStack {
             if message.isUser {
                 Spacer()
             }
-            
+
             VStack(alignment: message.isUser ? .trailing : .leading, spacing: 8) {
                 // Images
                 if let images = message.images, !images.isEmpty {
-                    MessageImagesView(images: images, onImageTap: { image in
-                        selectedImage = image
-                        showImageModal = true
-                    })
+                    MessageImagesView(images: images, onImageTap: onImageTap)
                 }
-                
+
                 // Texte
                 if !message.contenu.isEmpty {
                     Text(styledText)
@@ -1086,14 +1094,9 @@ struct MessageBubble: View {
                 }
             }
             .frame(maxWidth: 320, alignment: message.isUser ? .trailing : .leading)
-            
+
             if !message.isUser {
                 Spacer()
-            }
-        }
-        .sheet(isPresented: $showImageModal) {
-            if let image = selectedImage {
-                ImageDetailView(image: image)
             }
         }
     }
@@ -1169,36 +1172,60 @@ struct MessageImageThumbnail: View {
     }
 }
 
-struct ImageDetailView: View {
+/// Overlay plein écran pour afficher une image en grand
+struct ImagePreviewOverlay: View {
     let image: NSImage
-    @Environment(\.dismiss) private var dismiss
-    
+    let onClose: () -> Void
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Spacer()
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white.opacity(0.7))
+        ZStack {
+            // Fond semi-transparent
+            Color.black.opacity(0.85)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    onClose()
                 }
-                .buttonStyle(.plain)
-                .padding(16)
+
+            // Image centrée
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .padding(40)
+                .onTapGesture {
+                    // Ne pas fermer quand on clique sur l'image
+                }
+
+            // Bouton fermer en haut à droite
+            VStack {
+                HStack {
+                    Spacer()
+                    Button(action: onClose) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.black.opacity(0.6))
+                                .frame(width: 36, height: 36)
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(20)
+                }
+                Spacer()
             }
-            .background(Color.black.opacity(0.8))
-            
-            // Image en taille réelle
-            ScrollView([.horizontal, .vertical], showsIndicators: true) {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // Instructions en bas
+            VStack {
+                Spacer()
+                Text("Cliquez en dehors de l'image ou sur la croix pour fermer")
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.5))
+                    .padding(.bottom, 20)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black)
         }
-        .frame(minWidth: 600, minHeight: 500)
+        .transition(.opacity)
+        .animation(.easeInOut(duration: 0.2), value: true)
     }
 }
 

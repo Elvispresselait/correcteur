@@ -64,31 +64,35 @@ struct MessageBubble_Previews: PreviewProvider {
                 message: Message(
                     contenu: "Bonjour, peux-tu corriger ce texte avec des fautes d'orthographe ?",
                     isUser: true
-                )
+                ),
+                onImageTap: { _ in }
             )
-            
+
             // Message assistant
             MessageBubble(
                 message: Message(
                     contenu: "Bien sûr ! Envoyez-moi le texte à corriger et je vous aiderai à identifier toutes les erreurs.",
                     isUser: false
-                )
+                ),
+                onImageTap: { _ in }
             )
-            
+
             // Message utilisateur court
             MessageBubble(
                 message: Message(
                     contenu: "OK",
                     isUser: true
-                )
+                ),
+                onImageTap: { _ in }
             )
-            
+
             // Message assistant long
             MessageBubble(
                 message: Message(
                     contenu: "Voici votre texte corrigé : Il y a plusieurs **fautes** dans ce document. J'ai identifié les erreurs et les ai corrigées. Les mots en gras souligné sont les corrections.",
                     isUser: false
-                )
+                ),
+                onImageTap: { _ in }
             )
         }
         .padding()
