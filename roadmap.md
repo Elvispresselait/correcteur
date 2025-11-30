@@ -52,6 +52,46 @@ Ce document présente la vision à long terme de l'application Correcteur Pro, i
 
 ---
 
+## 🚀 Déploiement vers /Applications
+
+### Pourquoi c'est nécessaire ?
+Quand tu lances l'app via **Spotlight** (Cmd+Espace), macOS lance l'app située dans `/Applications/`.
+Si tu ne mets pas à jour ce fichier, tu lanceras l'ancienne version.
+
+### Comment mettre à jour l'app dans /Applications ?
+
+**Option 1 : Commande manuelle (Terminal)**
+```bash
+# Fermer l'app si elle tourne
+pkill -f "Correcteur Pro"
+
+# Supprimer l'ancienne version
+rm -rf "/Applications/Correcteur Pro.app"
+
+# Copier la nouvelle version depuis Xcode DerivedData
+cp -R ~/Library/Developer/Xcode/DerivedData/Correcteur_Pro-*/Build/Products/Debug/Correcteur\ Pro.app /Applications/
+
+# Lancer l'app
+open "/Applications/Correcteur Pro.app"
+```
+
+**Option 2 : Script automatisé**
+Le fichier `deploy.sh` à la racine du projet fait ça automatiquement :
+```bash
+./deploy.sh
+```
+
+**Option 3 : Via Claude Code**
+Demande simplement : "déploie l'app dans /Applications" ou "mets à jour l'app"
+
+### Vérifier la version
+Pour vérifier que tu as bien la dernière version, regarde la date de modification :
+```bash
+ls -la "/Applications/Correcteur Pro.app"
+```
+
+---
+
 ## 🚀 Fonctionnalités en cours de développement
 - Aucune (base stable)
 
@@ -83,7 +123,7 @@ Ce document présente la vision à long terme de l'application Correcteur Pro, i
 ---
 
 ## 🐛 Bugs connus à corriger
-- Aucun pour l'instant
+- ✅ ~~Aperçu d'image bloquant~~ → Corrigé avec overlay ZStack (commit 1e57590)
 
 
 ## 🔮 Fonctionnalités futures - Agents OpenAI
