@@ -1358,30 +1358,53 @@ struct InputBarView: View {
         // Vérifier la taille actuelle
         let currentSizeMB = image.sizeInMB() ?? originalSizeMB ?? 0.0
         let targetSizeMB: Double = 2.0
-        
+        let dimensions = "\(Int(image.size.width))x\(Int(image.size.height))"
+
+        // Log image détectée dans la console de debug
+        let detectedMsg = "🖼️ [Compression] Image détectée: \(dimensions), \(String(format: "%.2f", currentSizeMB)) MB"
+        print(detectedMsg)
+        Task { @MainActor in
+            DebugLogger.shared.log(detectedMsg, category: "Compression", level: .info)
+        }
+
         // Si image <= 2MB, pas besoin de compression
         guard currentSizeMB > targetSizeMB else {
-            print("✅ [InputBar] Image déjà sous \(targetSizeMB) MB, pas de compression nécessaire")
+            let noCompressMsg = "✅ [Compression] Image acceptée (déjà sous \(targetSizeMB) MB)"
+            print(noCompressMsg)
+            Task { @MainActor in
+                DebugLogger.shared.log(noCompressMsg, category: "Compression", level: .info)
+            }
             return image
         }
-        
-        print("🔧 [InputBar] TEMPS 2: Compression automatique activée (image > \(targetSizeMB) MB)...")
-        print("📊 [InputBar] Compression: \(String(format: "%.2f", currentSizeMB)) MB -> cible: \(targetSizeMB) MB")
-        
+
+        let compressStartMsg = "🔧 [Compression] Compression nécessaire: \(String(format: "%.2f", currentSizeMB)) MB -> cible: \(targetSizeMB) MB"
+        print(compressStartMsg)
+        Task { @MainActor in
+            DebugLogger.shared.log(compressStartMsg, category: "Compression", level: .info)
+        }
+
         // Compresser l'image
         if let compressed = image.compressToMaxSize(maxSizeMB: targetSizeMB) {
             let compressedSizeMB = compressed.sizeInMB() ?? 0.0
             let compressionRatio = (compressedSizeMB / currentSizeMB) * 100
-            
-            print("✅ [InputBar] Compression réussie: \(String(format: "%.2f", currentSizeMB)) MB -> \(String(format: "%.2f", compressedSizeMB)) MB (\(String(format: "%.1f", compressionRatio))%)")
-            
+
+            let successMsg = "✅ [Compression] Réussie: \(String(format: "%.2f", currentSizeMB)) MB -> \(String(format: "%.2f", compressedSizeMB)) MB (\(String(format: "%.1f", compressionRatio))%)"
+            print(successMsg)
+            Task { @MainActor in
+                DebugLogger.shared.log(successMsg, category: "Compression", level: .info)
+            }
+
             // Notifier la compression via callback
             let message = String(format: "Image compressée: %.1f MB → %.1f MB", currentSizeMB, compressedSizeMB)
             onImageCompressed(message)
-            
+
             return compressed
         } else {
-            print("⚠️ [InputBar] Échec de la compression, image originale conservée")
+            let failMsg = "⚠️ [Compression] Échec de la compression, image originale conservée (\(String(format: "%.2f", currentSizeMB)) MB)"
+            print(failMsg)
+            Task { @MainActor in
+                DebugLogger.shared.log(failMsg, category: "Compression", level: .warning)
+            }
             // Notifier l'échec via callback
             let warningMessage = String(format: "Impossible de compresser l'image (%.1f MB). Elle sera envoyée telle quelle.", currentSizeMB)
             onImageCompressed(warningMessage)

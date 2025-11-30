@@ -10,6 +10,7 @@ import SwiftUI
 struct InterfacePreferencesView: View {
 
     @ObservedObject var prefsManager = PreferencesManager.shared
+    @StateObject private var debugLogger = DebugLogger.shared
 
     var body: some View {
         Form {
@@ -73,6 +74,33 @@ struct InterfacePreferencesView: View {
                     }
 
                 Text("Cette option nécessite l'accès aux autorisations système")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            // SECTION : Développeur
+            Section("Développeur") {
+                Toggle("Afficher la console de debug", isOn: $debugLogger.isEnabled)
+                    .onChange(of: debugLogger.isEnabled) { _, newValue in
+                        UserDefaults.standard.set(newValue, forKey: "debugConsoleEnabled")
+                    }
+
+                if debugLogger.isEnabled {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("La console s'affiche en bas de la fenêtre principale")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Button("Effacer les logs") {
+                        debugLogger.clear()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Text("La console de debug affiche les logs en temps réel : appels API, réponses ChatGPT, erreurs, etc.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

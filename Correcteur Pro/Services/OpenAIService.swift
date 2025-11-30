@@ -257,6 +257,28 @@ final class OpenAIService {
                     print("✅ [OpenAIService] Taille de la réponse: \(content.count) caractères")
                     await DebugLogger.shared.log("✅ [API] Réponse reçue (\(content.count) caractères)", category: "API", level: .info)
 
+                    // Log de la réponse complète dans la console de debug in-app
+                    await DebugLogger.shared.log("📄 [API] RÉPONSE COMPLÈTE:\n\(content)", category: "API", level: .debug)
+
+                    // Log de la réponse complète pour debug (strikethrough, etc.)
+                    print("")
+                    print("═══════════════════════════════════════════════════════════════")
+                    print("📄 [OpenAIService] RÉPONSE COMPLÈTE DE CHATGPT:")
+                    print("═══════════════════════════════════════════════════════════════")
+                    print(content)
+                    print("═══════════════════════════════════════════════════════════════")
+                    print("")
+
+                    // Vérifier si la réponse contient du texte barré
+                    if content.contains("~~") {
+                        print("✅ [OpenAIService] Texte barré détecté (format ~~texte~~)")
+                        await DebugLogger.shared.log("✅ [API] Texte barré détecté (~~)", category: "API", level: .debug)
+                    }
+                    if content.contains("<s>") || content.contains("<del>") || content.contains("<strike>") {
+                        print("✅ [OpenAIService] Texte barré détecté (format HTML)")
+                        await DebugLogger.shared.log("✅ [API] Texte barré détecté (HTML)", category: "API", level: .debug)
+                    }
+
                     // 12. Retourner le texte de la réponse
                     return content
 
