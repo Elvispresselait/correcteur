@@ -142,8 +142,15 @@ class SelectionCaptureService {
     // MARK: - Overlay Management
 
     /// Affiche l'overlay de sélection et capture la zone
-    /// - Parameter completion: Callback avec l'image capturée ou nil si annulé
-    static func showSelectionOverlay(completion: @escaping (NSImage?) -> Void) {
+    /// - Parameters:
+    ///   - onSuccess: Callback avec l'image capturée
+    ///   - onError: Callback en cas d'erreur (permission refusée, etc.)
+    ///   - onCancel: Callback si l'utilisateur annule (Échap)
+    static func showSelectionOverlay(
+        onSuccess: @escaping (NSImage) -> Void,
+        onError: @escaping (Error) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
         let window = SelectionOverlayWindow()
 
         window.onSelectionComplete = { rect in
@@ -154,12 +161,12 @@ class SelectionCaptureService {
                 do {
                     let image = try await captureRect(rect)
                     await MainActor.run {
-                        completion(image)
+                        onSuccess(image)
                     }
                 } catch {
                     print("❌ [SelectionCapture] Erreur: \(error.localizedDescription)")
                     await MainActor.run {
-                        completion(nil)
+                        onError(error)
                     }
                 }
             }
@@ -167,7 +174,7 @@ class SelectionCaptureService {
 
         window.onCancel = {
             print("❌ [SelectionCapture] Sélection annulée")
-            completion(nil)
+            onCancel()
         }
 
         window.show()

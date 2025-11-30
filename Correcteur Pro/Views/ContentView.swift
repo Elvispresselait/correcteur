@@ -157,15 +157,26 @@ struct ContentView: View {
         GlobalHotKeyManager.shared.onSelectionCapture = { [weak vm] in
             DebugLogger.shared.logCapture("📸 Capture zone demandée")
 
-            SelectionCaptureService.showSelectionOverlay { image in
-                if let image = image {
+            SelectionCaptureService.showSelectionOverlay(
+                onSuccess: { image in
                     vm?.capturedImage = image
                     NSSound(named: "Tink")?.play()
                     DebugLogger.shared.logCapture("✅ Capture zone réussie")
-                } else {
-                    DebugLogger.shared.logWarning("⚠️ Capture zone annulée ou échouée")
+                },
+                onError: { error in
+                    // Afficher l'erreur pour que l'utilisateur puisse ouvrir les réglages
+                    if let captureError = error as? ScreenCaptureError {
+                        vm?.captureError = captureError.userInstructions
+                        DebugLogger.shared.logError("❌ Capture zone échouée: \(captureError.localizedDescription ?? "Erreur inconnue")")
+                    } else {
+                        vm?.captureError = "Erreur inattendue: \(error.localizedDescription)"
+                        DebugLogger.shared.logError("❌ Capture zone échouée: \(error.localizedDescription)")
+                    }
+                },
+                onCancel: {
+                    DebugLogger.shared.logWarning("⚠️ Capture zone annulée par l'utilisateur")
                 }
-            }
+            )
         }
 
         // Enregistrer tous les raccourcis depuis les préférences
